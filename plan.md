@@ -112,17 +112,26 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
 ## 4. 테스트 및 품질 관리
 
 ### 4.1 테스트 작성 규칙
-- **단위 테스트**: 각 함수/컴포넌트마다 작성
-- **통합 테스트**: 기능이 서로 잘 연동되는지 확인
-- **테스트 명명**: `test('사용자가 로그인 버튼을 클릭하면 대시보드로 이동해야 함')`
+
+#### MVP 단계 (현재) - 현실적인 타협안
+개발 속도와 테스트의 균형을 맞추기 위해 다음과 같이 진행:
+- **핵심 비즈니스 로직만 단위 테스트** (예: 인증, 데이터 파싱, 유틸 함수)
+- **UI 테스트는 후순위** (기획/UI가 정해진 후 추가)
+- **통합 테스트는 필수 기능 중심** (회원가입→로그인→대시보드 등 주요 플로우)
+- **이유**: MVP 단계에서 UI/기획이 빠르게 변하면 테스트 유지보수 비용이 개발 속도를 저하
+
+#### 성숙 단계 이후 - 체계적 테스트
+- **단위 테스트**: 모든 함수/컴포넌트 작성
+- **통합 테스트**: 기능 간 연동 확인
+- **E2E 테스트**: 사용자 시나리오 기반 테스트
 
 ### 4.2 코드 리뷰 체크리스트
 - [ ] 주석이 명확하고 충분한가?
 - [ ] 함수/컴포넌트가 하나의 책임만 가지는가?
 - [ ] 공통 로직이 재사용 가능한가?
-- [ ] 테스트 코드가 있는가?
-- [ ] 성능이 저하되지 않는가? (불필요한 렌더링 등)
 - [ ] 보안 문제는 없는가? (XSS, SQL Injection 등)
+- [ ] 성능이 저하되지 않는가? (불필요한 렌더링 등)
+- [ ] 테스트 코드가 있는가? (핵심 로직은 필수)
 
 ---
 
@@ -173,22 +182,30 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
 
 ---
 
-## 8. TODO 및 개선점 기록 예시
+## 8. TODO 및 개선점 기록
 
+### MVP 단계 우선순위
 - [ ] 신규 기능 추가 시 관련 폴더/파일 구조 반영
 - [ ] 공통 유틸 함수는 `shared/` 또는 `client/src/lib/`에 작성
 - [ ] DB 마이그레이션은 `drizzle/`에 추가
-- [ ] 테스트 코드 작성 및 커버리지 관리
+- [ ] 핵심 비즈니스 로직에만 단위 테스트 작성
 - [ ] 유휴 코드(사용되지 않는 함수/컴포넌트) 정기적으로 제거
+
+### 성능 & 확장성 개선 (Post-MVP)
+- [ ] **데이터베이스 마이그레이션**: Google Sheets DB의 한계 인식
+  - **현 상황**: 비용 절감을 위해 Google Sheets 사용 (무료)
+  - **한계**: 필터링/정렬, JOIN 등 복잡한 쿼리, 동시성 처리, 트랜잭션 성능 부족
+  - **권장 계획**: MVP 사용자 검증 후 `Supabase(PostgreSQL)` 또는 `PlanetScale`로 마이그레이션
+  - **이점**: 관계형 DB의 인덱싱, 스케일링, 트랜잭션 처리 지원
 - [ ] 의존성 패키지 정기적으로 업데이트 (보안 패치)
 - [ ] 로깅 시스템 구축 (에러, 경고 추적)
-- [ ] 성능 모니터링 도구 도입
+- [ ] 성능 모니터링 도구 도입 (Sentry, LogRocket 등)
 
 ---
 
-## 11. 구현 히스토리
+## 9. 구현 히스토리
 
-### 2026-04-04: 이메일/비밀번호 로그인 기능 구현
+### 2024-04-04: 이메일/비밀번호 로그인 기능 구현
 **배경**: 현재 OAuth만 있고 일반 로그인이 없어서 개발/테스트 어려움
 
 **구현 내용**:
@@ -198,11 +215,47 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
    - `password` 필드 추가 (bcrypt로 해시된 비밀번호 저장)
    - 마이그레이션 파일: `drizzle/migrations/0002_email_auth_migration.sql`
 
+2. **백엔드 구현** (`server/db.ts`, `server/routers.ts`)
+   - `createUserWithEmail()` - 회원가입 함수
+   - `authenticateUser()` - 로그인 검증 함수
+   - `hashPassword()` / `verifyPassword()` - 비밀번호 해싱
+   - API: `auth.signUp`, `auth.signIn` (TRPC 라우터)
+   - 의존성: bcrypt 추가
+
+3. **프론트엔드 구현**
+   - [Login.tsx](client/src/pages/Login.tsx) - 로그인 페이지
+   - [SignUp.tsx](client/src/pages/SignUp.tsx) - 회원가입 페이지
+   - 라우팅: `/login`, `/signup` 추가
+   - `AppLayout` → `redirectOnUnauthenticated: true` 설정
+
+4. **사용 흐름**
+   ```
+   회원가입 → 로그인 → 세션 쿠키 저장 → 대시보드 접근 가능
+   ```
+
+### 2024-04-04: Google Sheets 환경 설정 완료
+**배경**: 무료 DB가 필요해서 Google Sheets 사용 결정
+
+**설정 내용**:
+1. **서비스 계정 설정**
+   - JSON 파일: `service-account.json` (Google Cloud 서비스 계정)
+   - Google Cloud 서비스 계정 인증 설정 완료
+
+2. **환경 변수 설정** (`.env`)
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=service-account.json
+   GOOGLE_SHEETS_SPREADSHEET_ID=11qsSpEYFHjJ3_alMLLL6Ey0TBMgPWWknfqpsdFmN2bw
+   ```
+
+3. **활성화**
+   - `sheetsDb.ts` 모듈이 자동으로 Google Sheets 연동
+   - 기존 드리즐 DB 마이그레이션은 필요 없음 (Google Sheets 사용)
+
 ---
 
-## 12. GitHub 설정 & 다중 디바이스 개발
+## 10. GitHub 설정 & 다중 디바이스 개발
 
-### 12.1 초기 설정 (처음 한 번만)
+### 10.1 초기 설정 (처음 한 번만)
 ```bash
 # 원격 저장소 초기화 (GitHub 웹에서 저장소 생성 후)
 git init
@@ -213,7 +266,7 @@ git remote add origin https://github.com/username/repo.git
 git push -u origin main
 ```
 
-### 12.2 각 디바이스에서 작업 시작
+### 10.2 각 디바이스에서 작업 시작
 ```bash
 # 1단계: 저장소 클론
 git clone https://github.com/username/repo.git
@@ -232,7 +285,7 @@ npx drizzle-kit migrate
 pnpm dev
 ```
 
-### 12.3 .gitignore 설정
+### 10.3 .gitignore 설정
 ```
 # 로컬 환경 & DB
 .env
@@ -264,7 +317,7 @@ Thumbs.db
 npm-debug.log*
 ```
 
-### 12.4 다중 디바이스 워크플로우
+### 10.4 다중 디바이스 워크플로우
 **목표**: 여러 기기에서 같은 저장소로 작업할 때 db.sqlite + .env 파일 로컬 유지
 
 1. **각 디바이스 독립적 DB**: 로컬 `db.sqlite` 유지 (공유 X)
@@ -290,9 +343,9 @@ npx drizzle-kit migrate
 
 ---
 
-## 13. SQLite 데이터베이스 조회 방법
+## 11. SQLite 데이터베이스 조회 방법
 
-### SQLite 설치 & 사용 (Windows PowerShell)
+### 11.1 SQLite 설치 & 사용 (Windows PowerShell)
 ```bash
 # 1단계: sqlite3 설치 (Chocolatey 이용)
 choco install sqlite
@@ -307,51 +360,15 @@ SELECT * FROM users; # 모든 사용자 조회
 .exit                # 종료
 ```
 
-### VSCode 확장 프로그램 (권장)
+### 11.2 VSCode 확장 프로그램 (권장)
 **SQLite** 확장 설치 (SQLite Editor by yy0931)
 - VSCode 확장 마켓플레이스에서 "SQLite" 검색 후 설치
 - `db.sqlite` 파일 우클릭 → "Open with SQLite"
 - UI 버튼으로 데이터 조회 & 수정 가능
 
-### 웹 기반 도구 (설치 없음)
+### 11.3 웹 기반 도구 (설치 없음)
 - [SQLUI](https://sqlui.vercel.app/) - 로컬 SQLite 파일 드래그앤드롭으로 조회
 - [Sqlitestudio](https://sqlitestudio.pl/) - 다운로드 또는 포터블 버전 사용
-
-2. **백엔드 구현** (`server/db.ts`, `server/routers.ts`)
-   - `createUserWithEmail()` - 회원가입 함수
-   - `authenticateUser()` - 로그인 검증 함수
-   - `hashPassword()` / `verifyPassword()` - 비밀번호 해싱
-   - API: `auth.signUp`, `auth.signIn` (TRPC 라우터)
-   - 의존성: bcrypt 추가
-
-3. **프론트엔드 구현**
-   - [Login.tsx](client/src/pages/Login.tsx) - 로그인 페이지
-   - [SignUp.tsx](client/src/pages/SignUp.tsx) - 회원가입 페이지
-   - 라우팅: `/login`, `/signup` 추가
-   - `AppLayout` → `redirectOnUnauthenticated: true` 설정
-
-4. **사용 흐름**
-   ```
-   회원가입 → 로그인 → 세션 쿠키 저장 → 대시보드 접근 가능
-   ```
-
-### 2026-04-04: Google Sheets 환경 설정 완료
-**배경**: 무료 DB가 필요해서 Google Sheets 사용 결정
-
-**설정 내용**:
-1. **서비스 계정 설정**
-   - JSON 파일: `service-account.json` (Google Cloud 서비스 계정)
-   - Google Cloud 서비스 계정 인증 설정 완료
-
-2. **환경 변수 설정** (`.env`)
-   ```env
-   GOOGLE_APPLICATION_CREDENTIALS=service-account.json
-   GOOGLE_SHEETS_SPREADSHEET_ID=11qsSpEYFHjJ3_alMLLL6Ey0TBMgPWWknfqpsdFmN2bw
-   ```
-
-3. **활성화**
-   - `sheetsDb.ts` 모듈이 자동으로 Google Sheets 연동
-   - 기존 드리즐 DB 마이그레이션은 필요 없음 (Google Sheets 사용)
 
 ---
 
@@ -360,10 +377,11 @@ SELECT * FROM users; # 모든 사용자 조회
 - 파일/폴더 추가 시 본 문서에 구조 및 역할을 반드시 기록
 - 개발 중 발견한 이슈, 개선점, 규칙 변경 등도 본 문서에 업데이트
 - 매월 1회 기술 부채 정책 검토 (outdated 의존성, 리팩토링 필요 코드 등)
+- **MVP 단계에서는 빠른 개발 속도와 테스트 유지보수 비용의 균형을 맞출 것**
 
 ---
 
-## 10. 유용한 명령어
+## 13. 유용한 명령어
 
 ```bash
 # 프로젝트 설정 및 실행
@@ -389,8 +407,8 @@ pnpm build           # 프로덕션 빌드
 
 ---
 
-> **최초 생성:** 2026-04-04
-> **마지막 수정:** 2026-04-04
+> **최초 생성:** 2024-04-04
+> **마지막 수정:** 2024-04-05
 > **작성자:** GitHub Copilot
 > 
 > ℹ️ 이 파일은 프로젝트 개발 과정에서 참고할 수 있는 가이드입니다.
