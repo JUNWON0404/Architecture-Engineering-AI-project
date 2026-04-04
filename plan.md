@@ -204,9 +204,14 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
 ---
 
 ## 9. 구현 히스토리
+## 9. 유용한 명령어
 
-### 2024-04-04: 이메일/비밀번호 로그인 기능 구현
+### 2026-04-04: 이메일/비밀번호 로그인 기능 구현
 **배경**: 현재 OAuth만 있고 일반 로그인이 없어서 개발/테스트 어려움
+```bash
+# 프로젝트 설정 및 실행
+pnpm install          # 의존성 설치
+pnpm dev             # 개발 서버 실행
 
 **구현 내용**:
 1. **DB 스키마 변경** (`drizzle/schema.ts`)
@@ -214,6 +219,9 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
    - `email` → unique로 변경 (로그인 ID)
    - `password` 필드 추가 (bcrypt로 해시된 비밀번호 저장)
    - 마이그레이션 파일: `drizzle/migrations/0002_email_auth_migration.sql`
+# 타입 검사 및 린팅
+pnpm type-check      # TypeScript 타입 검사
+pnpm lint            # ESLint 실행
 
 2. **백엔드 구현** (`server/db.ts`, `server/routers.ts`)
    - `createUserWithEmail()` - 회원가입 함수
@@ -221,19 +229,29 @@ function UserCard({ userId, userName, avatar }: UserCardProps) {
    - `hashPassword()` / `verifyPassword()` - 비밀번호 해싱
    - API: `auth.signUp`, `auth.signIn` (TRPC 라우터)
    - 의존성: bcrypt 추가
+# 테스트
+pnpm test            # 테스트 실행
+pnpm test:watch      # 감시 모드 테스트
 
 3. **프론트엔드 구현**
    - [Login.tsx](client/src/pages/Login.tsx) - 로그인 페이지
    - [SignUp.tsx](client/src/pages/SignUp.tsx) - 회원가입 페이지
    - 라우팅: `/login`, `/signup` 추가
    - `AppLayout` → `redirectOnUnauthenticated: true` 설정
+# DB 관련
+pnpm db:generate     # Drizzle 마이그레이션 생성
+pnpm db:migrate      # 마이그레이션 적용
+pnpm db:studio       # Drizzle Studio 실행
 
 4. **사용 흐름**
    ```
    회원가입 → 로그인 → 세션 쿠키 저장 → 대시보드 접근 가능
    ```
+# 빌드
+pnpm build           # 프로덕션 빌드
+```
 
-### 2024-04-04: Google Sheets 환경 설정 완료
+### 2026-04-04: Google Sheets 환경 설정 완료
 **배경**: 무료 DB가 필요해서 Google Sheets 사용 결정
 
 **설정 내용**:
@@ -318,6 +336,7 @@ npm-debug.log*
 ```
 
 ### 10.4 다중 디바이스 워크플로우
+### 12.4 다중 디바이스 워크플로우
 **목표**: 여러 기기에서 같은 저장소로 작업할 때 db.sqlite + .env 파일 로컬 유지
 
 1. **각 디바이스 독립적 DB**: 로컬 `db.sqlite` 유지 (공유 X)
@@ -344,8 +363,10 @@ npx drizzle-kit migrate
 ---
 
 ## 11. SQLite 데이터베이스 조회 방법
+## 13. SQLite 데이터베이스 조회 방법
 
 ### 11.1 SQLite 설치 & 사용 (Windows PowerShell)
+### SQLite 설치 & 사용 (Windows PowerShell)
 ```bash
 # 1단계: sqlite3 설치 (Chocolatey 이용)
 choco install sqlite
@@ -361,14 +382,52 @@ SELECT * FROM users; # 모든 사용자 조회
 ```
 
 ### 11.2 VSCode 확장 프로그램 (권장)
+### VSCode 확장 프로그램 (권장)
 **SQLite** 확장 설치 (SQLite Editor by yy0931)
 - VSCode 확장 마켓플레이스에서 "SQLite" 검색 후 설치
 - `db.sqlite` 파일 우클릭 → "Open with SQLite"
 - UI 버튼으로 데이터 조회 & 수정 가능
 
 ### 11.3 웹 기반 도구 (설치 없음)
+### 웹 기반 도구 (설치 없음)
 - [SQLUI](https://sqlui.vercel.app/) - 로컬 SQLite 파일 드래그앤드롭으로 조회
 - [Sqlitestudio](https://sqlitestudio.pl/) - 다운로드 또는 포터블 버전 사용
+
+2. **백엔드 구현** (`server/db.ts`, `server/routers.ts`)
+   - `createUserWithEmail()` - 회원가입 함수
+   - `authenticateUser()` - 로그인 검증 함수
+   - `hashPassword()` / `verifyPassword()` - 비밀번호 해싱
+   - API: `auth.signUp`, `auth.signIn` (TRPC 라우터)
+   - 의존성: bcrypt 추가
+
+3. **프론트엔드 구현**
+   - [Login.tsx](client/src/pages/Login.tsx) - 로그인 페이지
+   - [SignUp.tsx](client/src/pages/SignUp.tsx) - 회원가입 페이지
+   - 라우팅: `/login`, `/signup` 추가
+   - `AppLayout` → `redirectOnUnauthenticated: true` 설정
+
+4. **사용 흐름**
+   ```
+   회원가입 → 로그인 → 세션 쿠키 저장 → 대시보드 접근 가능
+   ```
+
+### 2026-04-04: Google Sheets 환경 설정 완료
+**배경**: 무료 DB가 필요해서 Google Sheets 사용 결정
+
+**설정 내용**:
+1. **서비스 계정 설정**
+   - JSON 파일: `service-account.json` (Google Cloud 서비스 계정)
+   - Google Cloud 서비스 계정 인증 설정 완료
+
+2. **환경 변수 설정** (`.env`)
+   ```env
+   GOOGLE_APPLICATION_CREDENTIALS=service-account.json
+   GOOGLE_SHEETS_SPREADSHEET_ID=11qsSpEYFHjJ3_alMLLL6Ey0TBMgPWWknfqpsdFmN2bw
+   ```
+
+3. **활성화**
+   - `sheetsDb.ts` 모듈이 자동으로 Google Sheets 연동
+   - 기존 드리즐 DB 마이그레이션은 필요 없음 (Google Sheets 사용)
 
 ---
 
@@ -382,6 +441,7 @@ SELECT * FROM users; # 모든 사용자 조회
 ---
 
 ## 13. 유용한 명령어
+## 10. 유용한 명령어
 
 ```bash
 # 프로젝트 설정 및 실행
@@ -407,8 +467,10 @@ pnpm build           # 프로덕션 빌드
 
 ---
 
-> **최초 생성:** 2024-04-04
-> **마지막 수정:** 2024-04-05
+> **최초 생성:** 2026-04-04
+> **마지막 수정:** 2026-04-05
+> **최초 생성:** 2026-04-04
+> **마지막 수정:** 2026-04-04
 > **작성자:** GitHub Copilot
 > 
 > ℹ️ 이 파일은 프로젝트 개발 과정에서 참고할 수 있는 가이드입니다.
