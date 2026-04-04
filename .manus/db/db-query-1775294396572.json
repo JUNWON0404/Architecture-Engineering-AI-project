@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `cover_letters` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`company` varchar(255),\n\t`position` varchar(255),\n\t`content` text,\n\t`status` enum('draft','completed','submitted') NOT NULL DEFAULT 'draft',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `cover_letters_id` PRIMARY KEY(`id`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4XJ1ttfKFVCjJDF.root --database FrLxjHzbiS42vpp5bdU6zC --execute CREATE TABLE `cover_letters` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`company` varchar(255),\n\t`position` varchar(255),\n\t`content` text,\n\t`status` enum('draft','completed','submitted') NOT NULL DEFAULT 'draft',\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `cover_letters_id` PRIMARY KEY(`id`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1583
+}

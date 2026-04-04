@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `checklist_items` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`description` text,\n\t`category` varchar(100),\n\t`isCompleted` boolean DEFAULT false,\n\t`order` int DEFAULT 0,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `checklist_items_id` PRIMARY KEY(`id`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4XJ1ttfKFVCjJDF.root --database FrLxjHzbiS42vpp5bdU6zC --execute CREATE TABLE `checklist_items` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`title` varchar(255) NOT NULL,\n\t`description` text,\n\t`category` varchar(100),\n\t`isCompleted` boolean DEFAULT false,\n\t`order` int DEFAULT 0,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `checklist_items_id` PRIMARY KEY(`id`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1815
+}

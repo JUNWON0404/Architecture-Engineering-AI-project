@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE `interview_questions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`question` text NOT NULL,\n\t`answer` text,\n\t`category` varchar(100),\n\t`company` varchar(255),\n\t`position` varchar(255),\n\t`difficulty` enum('easy','medium','hard') DEFAULT 'medium',\n\t`isPublic` boolean DEFAULT false,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `interview_questions_id` PRIMARY KEY(`id`)\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway05.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4XJ1ttfKFVCjJDF.root --database FrLxjHzbiS42vpp5bdU6zC --execute CREATE TABLE `interview_questions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`userId` int NOT NULL,\n\t`question` text NOT NULL,\n\t`answer` text,\n\t`category` varchar(100),\n\t`company` varchar(255),\n\t`position` varchar(255),\n\t`difficulty` enum('easy','medium','hard') DEFAULT 'medium',\n\t`isPublic` boolean DEFAULT false,\n\t`createdAt` timestamp NOT NULL DEFAULT (now()),\n\t`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n\tCONSTRAINT `interview_questions_id` PRIMARY KEY(`id`)\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 1622
+}
