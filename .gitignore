@@ -11,6 +11,8 @@ build/
 project-eb7031f7-ec60-493e-966-*.json
 google-service-account.json
 **/google-service-account.json
+service-account.json
+**/service-account.json
 
 # Environment variables
 .env
