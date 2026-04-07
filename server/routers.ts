@@ -41,8 +41,6 @@ import {
   updateSchedule,
   updateUserProfile,
 } from "./db";
-import { isGoogleSheetsConfigured } from "./googleSheets";
-import { appendRowToTab, listSheetTabTitles, readTabAsObjects, updateRowById } from "./sheetsDb";
 
 export const appRouter = router({
   system: systemRouter,
@@ -411,35 +409,6 @@ export const appRouter = router({
         targetCompany: z.string().optional(),
       }))
       .mutation(({ ctx, input }) => updateUserProfile(ctx.user.id, input)),
-  }),
-
-  // ── Google Sheets (취업 데이터 백업·동기화용 탭 DB) ───────────
-  googleSheet: router({
-    configured: publicProcedure.query(() => ({ ok: isGoogleSheetsConfigured() })),
-    listTabs: protectedProcedure.query(() => listSheetTabTitles()),
-    readTab: protectedProcedure
-      .input(z.object({ tab: z.string().min(1) }))
-      .query(({ input }) => readTabAsObjects(input.tab)),
-    appendRow: protectedProcedure
-      .input(
-        z.object({
-          tab: z.string().min(1),
-          row: z.record(z.string(), z.string()),
-        })
-      )
-      .mutation(({ input }) => appendRowToTab(input.tab, input.row)),
-    updateRow: protectedProcedure
-      .input(
-        z.object({
-          tab: z.string().min(1),
-          id: z.string().min(1),
-          updates: z.record(z.string(), z.string()),
-        })
-      )
-      .mutation(async ({ input }) => {
-        const ok = await updateRowById(input.tab, input.id, input.updates);
-        return { ok } as const;
-      }),
   }),
 });
 
