@@ -10,7 +10,8 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
+    "db:push": "drizzle-kit generate && drizzle-kit migrate",
+    "postinstall": "tsx -e \"const fs = require('fs'); if (!fs.existsSync('.env') && fs.existsSync('.env.example')) { fs.copyFileSync('.env.example', '.env'); console.log('.env file created from .env.example'); } else if (fs.existsSync('.env')) { console.log('.env already exists, skipping.'); } else { console.log('.env.example not found, skipping.'); }\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
