@@ -38,9 +38,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const isDev = import.meta.env.DEV;
   
   // useAuth: 사용자 정보 조회 및 인증 상태 확인
-  // 개발환경에서는 redirectOnUnauthenticated를 false로 설정하여 인증 없이도 접근 가능
+  // 항상 redirectOnUnauthenticated를 false로 설정하여 인증 없이도 접근 가능하게 수정
   const { user, loading, isAuthenticated } = useAuth({
-    redirectOnUnauthenticated: !isDev,
+    redirectOnUnauthenticated: false,
     redirectPath: "/login",
   });
   const [location] = useLocation();
@@ -63,33 +63,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // 개발 환경에서는 인증 없이도 계속 진행
-  if (!isAuthenticated && !isDev) {
-    const loginUrl = getLoginUrl();
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <h2 className="text-2xl font-bold text-foreground">로그인이 필요합니다</h2>
-          <p className="text-muted-foreground">이 페이지를 이용하려면 로그인해 주세요.</p>
-          {loginUrl ? (
-            <a
-              href={loginUrl}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
-            >
-              로그인하기
-            </a>
-          ) : (
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-secondary text-secondary-foreground rounded-lg font-medium hover:opacity-90 transition-opacity"
-            >
-              홈으로
-            </Link>
-          )}
-        </div>
-      </div>
-    );
-  }
+  // 인증 여부와 관계없이 메인 콘텐츠를 보여주도록 차단 로직 제거
 
   return (
     <div className="flex min-h-screen bg-background">

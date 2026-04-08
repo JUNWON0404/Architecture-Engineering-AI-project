@@ -11,6 +11,12 @@ import "./index.css";
 const queryClient = new QueryClient();
 
 const redirectToLoginIfUnauthorized = (error: unknown) => {
+  // 인증되지 않았을 때 자동으로 튕기는 기능을 비활성화합니다.
+  // 필요 시 수동으로 로그인 페이지로 이동하도록 하거나 알림만 띄울 수 있습니다.
+  console.warn("[Auth Check] Unauthorized access detected, but redirection is disabled.");
+  return;
+  
+  /* 기존 로직 (비활성화)
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
 
@@ -20,6 +26,7 @@ const redirectToLoginIfUnauthorized = (error: unknown) => {
 
   const login = getLoginUrl();
   window.location.href = login ?? "/";
+  */
 };
 
 queryClient.getQueryCache().subscribe(event => {

@@ -46,11 +46,23 @@ export const appRouter = router({
   system: systemRouter,
   auth: router({
     // 현재 로그인한 사용자 정보 조회
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(({ ctx }) => {
+      // 로컬 개발 환경에서 사용자가 없는 경우(DB 연결 실패 등), 임시 사용자 반환
+      if (!ctx.user && process.env.NODE_ENV === "development") {
+        console.log("[Auth] Providing DEV_USER for 'me' query");
+        return {
+          id: 1,
+          openId: "dev-user-id",
+          email: "dev@example.com",
+          name: "개발 사용자",
+          role: "user",
+        };
+      }
+      return ctx.user;
+    }),
     
     /**
      * 회원가입 API
-     * 이메일과 비밀번호로 새 계정을 생성합니다
      */
     signUp: publicProcedure
       .input(z.object({
@@ -60,34 +72,17 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          console.log("[signUp] 회원가입 시도:", input.email);
-          
-          // 1. 데이터베이스에 사용자 생성
           const user = await createUserWithEmail(input.email, input.password, input.name);
-          console.log("[signUp] 사용자 생성 성공:", user.id, user.email);
           if (!user) throw new Error("사용자 생성 실패");
-
-          // 2. 세션 토큰 생성
           const sessionToken = await sdk.createSessionToken(user.id.toString(), {
             name: user.name || "",
             expiresInMs: ONE_YEAR_MS,
           });
-          console.log("[signUp] 세션 토큰 생성 완료");
-
-          // 3. 쿠키에 세션 저장
           const cookieOptions = getSessionCookieOptions(ctx.req);
-          ctx.res.cookie(COOKIE_NAME, sessionToken, {
-            ...cookieOptions,
-            maxAge: ONE_YEAR_MS,
-          });
-          console.log("[signUp] 쿠키 저장 완료");
-
-          // 4. 비밀번호는 반환하지 않음 (보안)
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
           const { password, ...userWithoutPassword } = user;
-          console.log("[signUp] 회원가입 성공");
           return { success: true, user: userWithoutPassword };
         } catch (error) {
-          console.error("[signUp] 에러:", error);
           const message = error instanceof Error ? error.message : "회원가입 실패";
           throw new Error(message);
         }
@@ -95,7 +90,6 @@ export const appRouter = router({
 
     /**
      * 로그인 API
-     * 이메일과 비밀번호로 로그인합니다
      */
     signIn: publicProcedure
       .input(z.object({
@@ -104,33 +98,16 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          console.log("[signIn] 로그인 시도:", input.email);
-          
-          // 1. 이메일과 비밀번호로 사용자 인증
           const user = await authenticateUser(input.email, input.password);
-          console.log("[signIn] 인증 성공:", user.id, user.email);
-
-          // 2. 세션 토큰 생성
           const sessionToken = await sdk.createSessionToken(user.id.toString(), {
             name: user.name || "",
             expiresInMs: ONE_YEAR_MS,
           });
-          console.log("[signIn] 세션 토큰 생성 완료");
-
-          // 3. 쿠키에 세션 저장
           const cookieOptions = getSessionCookieOptions(ctx.req);
-          ctx.res.cookie(COOKIE_NAME, sessionToken, {
-            ...cookieOptions,
-            maxAge: ONE_YEAR_MS,
-          });
-          console.log("[signIn] 쿠키 저장 완료");
-
-          // 4. 비밀번호는 반환하지 않음 (보안)
+          ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
           const { password, ...userWithoutPassword } = user;
-          console.log("[signIn] 로그인 성공, 사용자 반환");
           return { success: true, user: userWithoutPassword };
         } catch (error) {
-          console.error("[signIn] 에러:", error);
           const message = error instanceof Error ? error.message : "로그인 실패";
           throw new Error(message);
         }
@@ -158,9 +135,22 @@ export const appRouter = router({
         content: z.string().optional(),
         status: z.enum(["draft", "completed", "submitted"]).optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createCoverLetter({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(async ({ ctx, input }) => {
+        console.log("[Router] createCoverLetter input:", input);
+        const now = Date.now();
+        const result = await createCoverLetter({ 
+          ...input, 
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          status: input.status || "draft",
+          company: input.company || null,
+          position: input.position || null,
+          content: input.content || null,
+        });
+        console.log("[Router] createCoverLetter success:", result?.id);
+        return result;
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -230,9 +220,20 @@ export const appRouter = router({
         content: z.string().optional(),
         isDefault: z.boolean().optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createResume({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(async ({ ctx, input }) => {
+        console.log("[Router] createResume input:", input);
+        const now = Date.now();
+        const result = await createResume({ 
+          ...input, 
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          content: input.content || null,
+          isDefault: input.isDefault ? 1 : 0,
+        });
+        console.log("[Router] createResume success:", result?.id);
+        return result;
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
