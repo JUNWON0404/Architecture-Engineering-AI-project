@@ -1,4 +1,5 @@
-import { and, desc, eq } from "drizzle-orm";
+import "dotenv/config";
+import { and, desc, eq, sql, like, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import bcrypt from "bcrypt";
@@ -16,23 +17,36 @@ import {
   schedules,
   users,
 } from "../drizzle/schema";
-import { ENV } from "./_core/env";
-import { MOCK_COMPANIES, MOCK_JOB_POSTINGS } from "./mockData";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _connectionFailed = false;
 
+/**
+ * 데이터베이스 연결 객체(Drizzle)를 반환합니다.
+ */
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  if (_connectionFailed) return null;
+  if (!process.env.DATABASE_URL) {
+    console.warn("[Database] ⚠️ DATABASE_URL is missing in .env");
+    _connectionFailed = true;
+    return null;
+  }
+
+  if (!_db) {
     try {
-      console.log("[Database] Connecting to Supabase...");
+      console.log("[Database] ⏳ Connecting to Database...");
       const client = postgres(process.env.DATABASE_URL, { 
         prepare: false,
-        connect_timeout: 5,
+        connect_timeout: 10,
       });
       _db = drizzle(client);
-      console.log("[Database] Drizzle instance created");
-    } catch (error) {
-      console.error("[Database] Connection error:", error instanceof Error ? error.message : error);
+      
+      // 실제 연결 확인
+      await client`SELECT 1`;
+      console.log("[Database] ✅ SUCCESS: Database connected!");
+    } catch (error: any) {
+      console.error("[Database] ❌ FAILURE: Connection failed!");
+      _connectionFailed = true; 
       _db = null;
     }
   }
@@ -43,23 +57,20 @@ export async function getDb() {
 const MOCK_DB_PATH = path.join(process.cwd(), "mock_db.json");
 
 function getMockStore() {
-  if (!fs.existsSync(MOCK_DB_PATH)) {
-    const initialStore = {
-      coverLetters: [],
-      resumes: [],
-      interviewQuestions: [],
-      schedules: [],
-      bookmarks: [],
-      checklist: [],
-      users: [],
-    };
-    fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialStore, null, 2));
-    return initialStore;
-  }
+  const initialStore = {
+    coverLetters: [],
+    resumes: [],
+    interviewQuestions: [],
+    schedules: [],
+    bookmarks: [],
+    checklist: [],
+    users: [],
+  };
+  if (!fs.existsSync(MOCK_DB_PATH)) return initialStore;
   try {
     return JSON.parse(fs.readFileSync(MOCK_DB_PATH, "utf-8"));
   } catch (error) {
-    return { coverLetters: [], resumes: [], interviewQuestions: [], schedules: [], bookmarks: [], checklist: [], users: [] };
+    return initialStore;
   }
 }
 
@@ -67,45 +78,68 @@ function saveMockStore(store: any) {
   fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(store, null, 2));
 }
 
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) throw new Error("User openId is required for upsert");
+/**
+ * DB 쿼리 실행 및 실패 시 Mock Store로의 전환을 담당하는 공통 헬퍼 함수
+ */
+async function runQuery<T>(
+  dbQuery: (db: NonNullable<ReturnType<typeof drizzle>>) => Promise<T>,
+  mockFallback: (store: any) => T
+): Promise<T> {
   try {
     const db = await getDb();
-    if (!db) {
-      const store = getMockStore();
-      const index = store.users.findIndex((u: any) => u.openId === user.openId);
+    if (db) {
+      return await dbQuery(db as any);
+    }
+  } catch (error) {
+    console.error("[Database] ⚠️ Query execution failed, falling back to Mock:", error);
+  }
+  return mockFallback(getMockStore());
+}
+
+// ── User Management ──────────────────────────────────────────
+export async function upsertUser(user: InsertUser): Promise<void> {
+  if (!user.openId) return;
+  const openId = user.openId as string;
+  
+  await runQuery(
+    async (db) => {
+      const existingUser = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+      if (existingUser.length > 0) {
+        await db.update(users).set({ ...user, updatedAt: Date.now() }).where(eq(users.openId, openId));
+      } else {
+        await db.insert(users).values({ ...user, createdAt: Date.now(), updatedAt: Date.now() });
+      }
+    },
+    (store) => {
+      const index = store.users.findIndex((u: any) => u.openId === openId);
       if (index !== -1) {
         store.users[index] = { ...store.users[index], ...user, updatedAt: Date.now() };
       } else {
         store.users.push({ ...user, id: Math.floor(Math.random() * 10000), createdAt: Date.now(), updatedAt: Date.now() });
       }
       saveMockStore(store);
-      return;
     }
-    // ... (DB logic remains same)
-  } catch (error) {}
+  );
 }
 
 export async function getUserByOpenId(openId: string) {
-  try {
-    const db = await getDb();
-    if (!db) return getMockStore().users.find((u: any) => u.openId === openId);
-    const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    return result.length > 0 ? result[0] : getMockStore().users.find((u: any) => u.openId === openId);
-  } catch (error) {
-    return getMockStore().users.find((u: any) => u.openId === openId);
-  }
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+      return result[0];
+    },
+    (store) => store.users.find((u: any) => u.openId === openId)
+  );
 }
 
 export async function getUserByEmail(email: string) {
-  try {
-    const db = await getDb();
-    if (!db) return getMockStore().users.find((u: any) => u.email === email);
-    const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    return result.length > 0 ? result[0] : getMockStore().users.find((u: any) => u.email === email);
-  } catch (error) {
-    return getMockStore().users.find((u: any) => u.email === email);
-  }
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      return result[0];
+    },
+    (store) => store.users.find((u: any) => u.email === email)
+  );
 }
 
 export async function hashPassword(plainPassword: string): Promise<string> {
@@ -123,24 +157,19 @@ export async function createUserWithEmail(email: string, password: string, name?
   const now = Date.now();
   const userData = { email, password: hashedPassword, name: name || null, loginMethod: "email", createdAt: now, updatedAt: now, lastSignedIn: now };
 
-  try {
-    const db = await getDb();
-    if (!db) {
-      const store = getMockStore();
+  return runQuery(
+    async (db) => {
+      await db.insert(users).values(userData as any);
+      const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      return user[0];
+    },
+    (store) => {
       const newUser = { ...userData, id: Math.floor(Math.random() * 10000) };
       store.users.push(newUser);
       saveMockStore(store);
       return newUser;
     }
-    await db.insert(users).values(userData);
-    return getUserByEmail(email);
-  } catch (error) {
-    const store = getMockStore();
-    const newUser = { ...userData, id: Math.floor(Math.random() * 10000) };
-    store.users.push(newUser);
-    saveMockStore(store);
-    return newUser;
-  }
+  );
 }
 
 export async function authenticateUser(email: string, password: string) {
@@ -152,240 +181,659 @@ export async function authenticateUser(email: string, password: string) {
 
 // ── Cover Letters ──────────────────────────────────────────────
 export async function getCoverLetters(userId: number) {
-  try {
-    const db = await getDb();
-    if (!db) return getMockStore().coverLetters.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt);
-    return db.select().from(coverLetters).where(eq(coverLetters.userId, userId)).orderBy(desc(coverLetters.updatedAt));
-  } catch (error) {
-    return getMockStore().coverLetters.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt);
-  }
+  return runQuery(
+    async (db) => db.select().from(coverLetters).where(eq(coverLetters.userId, userId)).orderBy(desc(coverLetters.updatedAt)),
+    (store) => store.coverLetters.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt)
+  );
 }
 
-export async function createCoverLetter(data: typeof coverLetters.$inferInsert) {
+export async function getCoverLettersBrief(userId: number) {
+  return runQuery(
+    async (db) => db.select({
+      id: coverLetters.id,
+      title: coverLetters.title,
+      company: coverLetters.company,
+      position: coverLetters.position,
+      status: coverLetters.status,
+      isMaster: coverLetters.isMaster,
+      updatedAt: coverLetters.updatedAt,
+    }).from(coverLetters).where(eq(coverLetters.userId, userId)).orderBy(desc(coverLetters.updatedAt)),
+    (store) => store.coverLetters
+      .filter((i: any) => i.userId === userId)
+      .map(({ content, experience, keyStory, ...rest }: any) => rest)
+      .sort((a: any, b: any) => b.updatedAt - a.updatedAt)
+  );
+}
+
+export async function getMasterCoverLetter(userId: number) {
+  return runQuery(
+    async (db) => {
+      // 1. explicit master 찾기
+      const master = await db.select().from(coverLetters).where(and(eq(coverLetters.userId, userId), eq(coverLetters.isMaster, 1))).limit(1);
+      if (master.length > 0) return master[0];
+      
+      // 2. 없으면 가장 최근 것 반환
+      const latest = await db.select().from(coverLetters).where(eq(coverLetters.userId, userId)).orderBy(desc(coverLetters.updatedAt)).limit(1);
+      return latest[0] || null;
+    },
+    (store) => {
+      const masters = store.coverLetters.filter((i: any) => i.userId === userId && i.isMaster === 1);
+      if (masters.length > 0) return masters[0];
+      return store.coverLetters.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt)[0] || null;
+    }
+  );
+}
+
+export async function setMasterCoverLetter(userId: number, id: number) {
+  return runQuery(
+    async (db) => {
+      // 기존 마스터들 해제
+      await db.update(coverLetters).set({ isMaster: 0 }).where(eq(coverLetters.userId, userId));
+      // 새 마스터 설정
+      await db.update(coverLetters).set({ isMaster: 1 }).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
+      const result = await db.select().from(coverLetters).where(eq(coverLetters.id, id)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      store.coverLetters.forEach((i: any) => { if (i.userId === userId) i.isMaster = 0; });
+      const target = store.coverLetters.find((i: any) => i.id === id && i.userId === userId);
+      if (target) {
+        target.isMaster = 1;
+        saveMockStore(store);
+        return target;
+      }
+    }
+  );
+}
+
+export async function cloneCoverLetter(masterId: number, userId: number, companyName: string) {
   const now = Date.now();
-  const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-  try {
-    const db = await getDb();
-    if (!db) {
-      const store = getMockStore();
+  return runQuery(
+    async (db) => {
+      const master = await db.select().from(coverLetters).where(and(eq(coverLetters.id, masterId), eq(coverLetters.userId, userId))).limit(1);
+      if (master.length === 0) throw new Error("마스터 자소서를 찾을 수 없습니다.");
+      
+      const { id: _, createdAt: __, updatedAt: ___, isMaster: ____, ...masterData } = master[0];
+      
+      const newData = {
+        ...masterData,
+        title: `${companyName} 맞춤형 자소서`,
+        company: companyName,
+        isMaster: 0,
+        parentId: masterId,
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      await db.insert(coverLetters).values(newData as any);
+      const result = await db.select().from(coverLetters).where(eq(coverLetters.userId, userId)).orderBy(desc(coverLetters.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const master = store.coverLetters.find((i: any) => i.id === masterId && i.userId === userId);
+      if (!master) throw new Error("마스터 자소서를 찾을 수 없습니다.");
+      
+      const { id: _, createdAt: __, updatedAt: ___, isMaster: ____, ...masterData } = master;
+      const newItem = {
+        ...masterData,
+        id: Math.floor(Math.random() * 10000),
+        title: `${companyName} 맞춤형 자소서`,
+        company: companyName,
+        isMaster: 0,
+        parentId: masterId,
+        status: "draft",
+        createdAt: now,
+        updatedAt: now,
+      };
       store.coverLetters.push(newItem);
       saveMockStore(store);
       return newItem;
     }
-    await db.insert(coverLetters).values(data);
-    const result = await db.select().from(coverLetters).where(eq(coverLetters.userId, data.userId)).orderBy(desc(coverLetters.createdAt)).limit(1);
-    return result[0] || newItem;
-  } catch (error) {
-    const store = getMockStore();
-    store.coverLetters.push(newItem);
-    saveMockStore(store);
-    return newItem;
-  }
+  );
+}
+
+export async function getCoverLetterById(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => store.coverLetters.find((i: any) => i.id === id && i.userId === userId)
+  );
+}
+
+export async function createCoverLetter(data: typeof coverLetters.$inferInsert) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      await db.insert(coverLetters).values(data);
+      const result = await db.select().from(coverLetters).where(eq(coverLetters.userId, data.userId)).orderBy(desc(coverLetters.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
+      store.coverLetters.push(newItem);
+      saveMockStore(store);
+      return newItem;
+    }
+  );
 }
 
 export async function updateCoverLetter(id: number, userId: number, data: Partial<typeof coverLetters.$inferInsert>) {
-  try {
-    const db = await getDb();
-    const store = getMockStore();
-    const index = store.coverLetters.findIndex((i: any) => i.id === id && i.userId === userId);
-    if (!db || index !== -1) {
+  return runQuery(
+    async (db) => {
+      await db.update(coverLetters).set(data).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
+      const result = await db.select().from(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.coverLetters.findIndex((i: any) => i.id === id && i.userId === userId);
       if (index !== -1) {
         store.coverLetters[index] = { ...store.coverLetters[index], ...data, updatedAt: Date.now() };
         saveMockStore(store);
         return store.coverLetters[index];
       }
     }
-    if (db) {
-      await db.update(coverLetters).set(data).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
-      const result = await db.select().from(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId))).limit(1);
-      return result[0];
-    }
-  } catch (error) {}
+  );
 }
 
 export async function deleteCoverLetter(id: number, userId: number) {
-  try {
-    const db = await getDb();
-    const store = getMockStore();
-    const index = store.coverLetters.findIndex((i: any) => i.id === id && i.userId === userId);
-    if (index !== -1) {
-      store.coverLetters.splice(index, 1);
-      saveMockStore(store);
+  return runQuery(
+    async (db) => {
+      await db.delete(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
+    },
+    (store) => {
+      const index = store.coverLetters.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.coverLetters.splice(index, 1);
+        saveMockStore(store);
+      }
     }
-    if (db) await db.delete(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
-  } catch (error) {}
+  );
 }
 
 // ── Resumes ────────────────────────────────────────────────────
 export async function getResumes(userId: number) {
-  try {
-    const db = await getDb();
-    if (!db) return getMockStore().resumes.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt);
-    return db.select().from(resumes).where(eq(resumes.userId, userId)).orderBy(desc(resumes.updatedAt));
-  } catch (error) {
-    return getMockStore().resumes.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt);
-  }
+  return runQuery(
+    async (db) => db.select().from(resumes).where(eq(resumes.userId, userId)).orderBy(desc(resumes.updatedAt)),
+    (store) => store.resumes.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt)
+  );
 }
 
 export async function getResumeById(id: number, userId: number) {
-  try {
-    const db = await getDb();
-    if (!db) return getMockStore().resumes.find((i: any) => i.id === id && i.userId === userId);
-    const result = await db.select().from(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId))).limit(1);
-    return result[0] || getMockStore().resumes.find((i: any) => i.id === id && i.userId === userId);
-  } catch (error) {
-    return getMockStore().resumes.find((i: any) => i.id === id && i.userId === userId);
-  }
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => store.resumes.find((i: any) => i.id === id && i.userId === userId)
+  );
 }
 
 export async function createResume(data: typeof resumes.$inferInsert) {
   const now = Date.now();
-  const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-  try {
-    const db = await getDb();
-    if (!db) {
-      const store = getMockStore();
+  return runQuery(
+    async (db) => {
+      await db.insert(resumes).values(data);
+      const result = await db.select().from(resumes).where(eq(resumes.userId, data.userId)).orderBy(desc(resumes.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
       store.resumes.push(newItem);
       saveMockStore(store);
       return newItem;
     }
-    await db.insert(resumes).values(data);
-    const result = await db.select().from(resumes).where(eq(resumes.userId, data.userId)).orderBy(desc(resumes.createdAt)).limit(1);
-    return result[0] || newItem;
-  } catch (error) {
-    const store = getMockStore();
-    store.resumes.push(newItem);
-    saveMockStore(store);
-    return newItem;
-  }
+  );
 }
 
 export async function updateResume(id: number, userId: number, data: Partial<typeof resumes.$inferInsert>) {
-  try {
-    const db = await getDb();
-    const store = getMockStore();
-    const index = store.resumes.findIndex((i: any) => i.id === id && i.userId === userId);
-    if (!db || index !== -1) {
+  return runQuery(
+    async (db) => {
+      await db.update(resumes).set(data).where(and(eq(resumes.id, id), eq(resumes.userId, userId)));
+      const result = await db.select().from(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.resumes.findIndex((i: any) => i.id === id && i.userId === userId);
       if (index !== -1) {
         store.resumes[index] = { ...store.resumes[index], ...data, updatedAt: Date.now() };
         saveMockStore(store);
         return store.resumes[index];
       }
     }
-    if (db) {
-      await db.update(resumes).set(data).where(and(eq(resumes.id, id), eq(resumes.userId, userId)));
-      const result = await db.select().from(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId))).limit(1);
-      return result[0];
-    }
-  } catch (error) {}
+  );
 }
 
 export async function deleteResume(id: number, userId: number) {
-  try {
-    const db = await getDb();
-    const store = getMockStore();
-    const index = store.resumes.findIndex((i: any) => i.id === id && i.userId === userId);
-    if (index !== -1) {
-      store.resumes.splice(index, 1);
-      saveMockStore(store);
+  return runQuery(
+    async (db) => {
+      await db.delete(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId)));
+    },
+    (store) => {
+      const index = store.resumes.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.resumes.splice(index, 1);
+        saveMockStore(store);
+      }
     }
-    if (db) await db.delete(resumes).where(and(eq(resumes.id, id), eq(resumes.userId, userId)));
-  } catch (error) {}
+  );
 }
 
-// ── Other functions (Interview, Schedule, etc.) ──────────────────
-// 생략하지만 파일 기반 로직으로 모두 전환하겠습니다.
+// ── Interview Questions ────────────────────────────────────────
+export async function getInterviewQuestions(userId: number) {
+  return runQuery(
+    async (db) => db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId)).orderBy(desc(interviewQuestions.updatedAt)),
+    (store) => store.interviewQuestions.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt)
+  );
+}
 
-export async function getAllCompanies() {
-  try {
-    const db = await getDb();
-    if (!db) return MOCK_COMPANIES.map(c => ({ ...c, jobPostingsCount: MOCK_JOB_POSTINGS.filter(j => j.companyId === c.id && j.isActive === 1).length }));
-    const companiesList = await db.select().from(companies).orderBy(desc(companies.updatedAt));
-    return Promise.all(companiesList.map(async (company) => {
-      const jobs = await db.select().from(jobPostings).where(eq(jobPostings.companyId, company.id));
-      return { ...company, jobPostingsCount: jobs.filter(j => j.isActive === 1).length };
-    }));
-  } catch (error) {
-    return MOCK_COMPANIES.map(c => ({ ...c, jobPostingsCount: MOCK_JOB_POSTINGS.filter(j => j.companyId === c.id && j.isActive === 1).length }));
-  }
+export async function getInterviewQuestionById(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(interviewQuestions).where(and(eq(interviewQuestions.id, id), eq(interviewQuestions.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => store.interviewQuestions.find((i: any) => i.id === id && i.userId === userId)
+  );
+}
+
+export async function createInterviewQuestion(data: typeof interviewQuestions.$inferInsert) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      await db.insert(interviewQuestions).values(data);
+      const result = await db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, data.userId)).orderBy(desc(interviewQuestions.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
+      store.interviewQuestions.push(newItem);
+      saveMockStore(store);
+      return newItem;
+    }
+  );
+}
+
+export async function updateInterviewQuestion(id: number, userId: number, data: Partial<typeof interviewQuestions.$inferInsert>) {
+  return runQuery(
+    async (db) => {
+      await db.update(interviewQuestions).set(data).where(and(eq(interviewQuestions.id, id), eq(interviewQuestions.userId, userId)));
+      const result = await db.select().from(interviewQuestions).where(and(eq(interviewQuestions.id, id), eq(interviewQuestions.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.interviewQuestions.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.interviewQuestions[index] = { ...store.interviewQuestions[index], ...data, updatedAt: Date.now() };
+        saveMockStore(store);
+        return store.interviewQuestions[index];
+      }
+    }
+  );
+}
+
+export async function deleteInterviewQuestion(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      await db.delete(interviewQuestions).where(and(eq(interviewQuestions.id, id), eq(interviewQuestions.userId, userId)));
+    },
+    (store) => {
+      const index = store.interviewQuestions.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.interviewQuestions.splice(index, 1);
+        saveMockStore(store);
+      }
+    }
+  );
+}
+
+// ── Schedules ──────────────────────────────────────────────────
+export async function getSchedules(userId: number) {
+  return runQuery(
+    async (db) => db.select().from(schedules).where(eq(schedules.userId, userId)).orderBy(desc(schedules.scheduledAt)),
+    (store) => store.schedules.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: !!i.isCompleted })).sort((a: any, b: any) => a.scheduledAt - b.scheduledAt)
+  );
+}
+
+export async function createSchedule(data: typeof schedules.$inferInsert) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      await db.insert(schedules).values(data);
+      const result = await db.select().from(schedules).where(eq(schedules.userId, data.userId)).orderBy(desc(schedules.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
+      store.schedules.push({ ...newItem, isCompleted: !!newItem.isCompleted });
+      saveMockStore(store);
+      return { ...newItem, isCompleted: !!newItem.isCompleted };
+    }
+  );
+}
+
+export async function updateSchedule(id: number, userId: number, data: Partial<typeof schedules.$inferInsert>) {
+  return runQuery(
+    async (db) => {
+      await db.update(schedules).set(data).where(and(eq(schedules.id, id), eq(schedules.userId, userId)));
+      const result = await db.select().from(schedules).where(and(eq(schedules.id, id), eq(schedules.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.schedules.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.schedules[index] = { ...store.schedules[index], ...data, updatedAt: Date.now() };
+        if (data.isCompleted !== undefined) store.schedules[index].isCompleted = !!data.isCompleted;
+        saveMockStore(store);
+        return { ...store.schedules[index], isCompleted: !!store.schedules[index].isCompleted };
+      }
+    }
+  );
+}
+
+export async function deleteSchedule(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      await db.delete(schedules).where(and(eq(schedules.id, id), eq(schedules.userId, userId)));
+    },
+    (store) => {
+      const index = store.schedules.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.schedules.splice(index, 1);
+        saveMockStore(store);
+      }
+    }
+  );
+}
+
+// ── Company Bookmarks ──────────────────────────────────────────
+export async function getCompanyBookmarks(userId: number) {
+  return runQuery(
+    async (db) => db.select().from(companyBookmarks).where(eq(companyBookmarks.userId, userId)).orderBy(desc(companyBookmarks.updatedAt)),
+    (store) => store.bookmarks.filter((i: any) => i.userId === userId).sort((a: any, b: any) => b.updatedAt - a.updatedAt)
+  );
+}
+
+export async function createCompanyBookmark(data: typeof companyBookmarks.$inferInsert) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      await db.insert(companyBookmarks).values(data);
+      const result = await db.select().from(companyBookmarks).where(eq(companyBookmarks.userId, data.userId)).orderBy(desc(companyBookmarks.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
+      store.bookmarks.push(newItem);
+      saveMockStore(store);
+      return newItem;
+    }
+  );
+}
+
+export async function updateCompanyBookmark(id: number, userId: number, data: Partial<typeof companyBookmarks.$inferInsert>) {
+  return runQuery(
+    async (db) => {
+      await db.update(companyBookmarks).set(data).where(and(eq(companyBookmarks.id, id), eq(companyBookmarks.userId, userId)));
+      const result = await db.select().from(companyBookmarks).where(and(eq(companyBookmarks.id, id), eq(companyBookmarks.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.bookmarks.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.bookmarks[index] = { ...store.bookmarks[index], ...data, updatedAt: Date.now() };
+        saveMockStore(store);
+        return store.bookmarks[index];
+      }
+    }
+  );
+}
+
+export async function deleteCompanyBookmark(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      await db.delete(companyBookmarks).where(and(eq(companyBookmarks.id, id), eq(companyBookmarks.userId, userId)));
+    },
+    (store) => {
+      const index = store.bookmarks.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.bookmarks.splice(index, 1);
+        saveMockStore(store);
+      }
+    }
+  );
+}
+
+// ── Checklist ──────────────────────────────────────────────────
+export async function getChecklistItems(userId: number) {
+  return runQuery(
+    async (db) => db.select().from(checklistItems).where(eq(checklistItems.userId, userId)).orderBy(checklistItems.order),
+    (store) => store.checklist.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: !!i.isCompleted })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+  );
+}
+
+export async function createChecklistItem(data: typeof checklistItems.$inferInsert) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      await db.insert(checklistItems).values(data);
+      const result = await db.select().from(checklistItems).where(eq(checklistItems.userId, data.userId)).orderBy(desc(checklistItems.createdAt)).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
+      store.checklist.push({ ...newItem, isCompleted: !!newItem.isCompleted });
+      saveMockStore(store);
+      return { ...newItem, isCompleted: !!newItem.isCompleted };
+    }
+  );
+}
+
+export async function updateChecklistItem(id: number, userId: number, data: Partial<typeof checklistItems.$inferInsert>) {
+  return runQuery(
+    async (db) => {
+      await db.update(checklistItems).set(data).where(and(eq(checklistItems.id, id), eq(checklistItems.userId, userId)));
+      const result = await db.select().from(checklistItems).where(and(eq(checklistItems.id, id), eq(checklistItems.userId, userId))).limit(1);
+      return result[0];
+    },
+    (store) => {
+      const index = store.checklist.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.checklist[index] = { ...store.checklist[index], ...data, updatedAt: Date.now() };
+        if (data.isCompleted !== undefined) store.checklist[index].isCompleted = !!data.isCompleted;
+        saveMockStore(store);
+        return { ...store.checklist[index], isCompleted: !!store.checklist[index].isCompleted };
+      }
+    }
+  );
+}
+
+export async function deleteChecklistItem(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      await db.delete(checklistItems).where(and(eq(checklistItems.id, id), eq(checklistItems.userId, userId)));
+    },
+    (store) => {
+      const index = store.checklist.findIndex((i: any) => i.id === id && i.userId === userId);
+      if (index !== -1) {
+        store.checklist.splice(index, 1);
+        saveMockStore(store);
+      }
+    }
+  );
+}
+
+// ── Companies & Job Postings ───────────────────────────────────
+export async function getAllCompanies(options?: { location?: string; sortBy?: "rank" | "name" | "recent" }) {
+  return runQuery(
+    async (db) => {
+      let query = db
+        .select({
+          id: companies.id,
+          name: companies.name,
+          sector: companies.sector,
+          rank: companies.rank,
+          brand: companies.brand,
+          hiringSeason: companies.hiringSeason,
+          salaryGuide: companies.salaryGuide,
+          // description 제거 (목록에서는 불필요)
+          location: companies.location,
+          employees: companies.employees,
+          established: companies.established,
+          website: companies.website,
+          thumbnail: companies.thumbnail,
+          createdAt: companies.createdAt,
+          updatedAt: companies.updatedAt,
+          jobPostingsCount: sql<number>`count(${jobPostings.id})`.mapWith(Number),
+        })
+        .from(companies)
+        .leftJoin(jobPostings, and(eq(jobPostings.companyId, companies.id), eq(jobPostings.isActive, 1)))
+        .groupBy(companies.id);
+
+      if (options?.location && options.location !== "all") {
+        query = query.where(like(companies.location, `%${options.location}%`)) as any;
+      }
+
+      switch (options?.sortBy) {
+        case "rank":
+          query = query.orderBy(asc(companies.rank)) as any;
+          break;
+        case "name":
+          query = query.orderBy(asc(companies.name)) as any;
+          break;
+        case "recent":
+        default:
+          query = query.orderBy(desc(companies.updatedAt)) as any;
+          break;
+      }
+
+      return await query;
+    },
+    () => {
+      // Mock Fallback: DB 연결 실패 시 보여줄 최소한의 데이터
+      const now = Date.now();
+      return [
+        { id: 1, name: "현대건설", sector: "건설/토목", rank: 1, brand: "힐스테이트", hiringSeason: "상반기/하반기", salaryGuide: "5,000만원대", location: "서울특별시 종로구", description: "국내 건설 산업을 선도하는 글로벌 건설사", employees: "약 6,000명", established: 1947, website: "https://www.hdec.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1 },
+        { id: 2, name: "삼성물산", sector: "건설/건축", rank: 2, brand: "래미안", hiringSeason: "상시", salaryGuide: "5,500만원대", location: "서울특별시 강동구", description: "차별화된 기술력과 품질을 자랑하는 글로벌 건설사", employees: "약 5,000명", established: 1938, website: "https://www.secc.co.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1 },
+        { id: 3, name: "대우건설", sector: "건설/토목", rank: 3, brand: "푸르지오", hiringSeason: "상반기", salaryGuide: "4,800만원대", location: "서울특별시 중구", description: "인류와 자연이 함께하는 건강한 미래를 만드는 대우건설", employees: "약 5,500명", established: 1973, website: "https://www.daewooenc.com", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 0 },
+      ];
+    }
+  );
 }
 
 export async function getCompanyById(id: number) {
-  try {
-    const db = await getDb();
-    if (!db) return MOCK_COMPANIES.find(c => c.id === id) || null;
-    const result = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
-    return result[0] || MOCK_COMPANIES.find(c => c.id === id) || null;
-  } catch (error) {
-    return MOCK_COMPANIES.find(c => c.id === id) || null;
-  }
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(companies).where(eq(companies.id, id)).limit(1);
+      return result[0] || null;
+    },
+    () => null
+  );
 }
 
 export async function getJobPostingsByCompanyId(companyId: number) {
-  try {
-    const db = await getDb();
-    if (!db) return MOCK_JOB_POSTINGS.filter(j => j.companyId === companyId);
-    return db.select().from(jobPostings).where(eq(jobPostings.companyId, companyId)).orderBy(desc(jobPostings.postedAt));
-  } catch (error) {
-    return MOCK_JOB_POSTINGS.filter(j => j.companyId === companyId);
-  }
+  return runQuery(
+    async (db) => db.select().from(jobPostings).where(eq(jobPostings.companyId, companyId)).orderBy(desc(jobPostings.postedAt)),
+    () => []
+  );
 }
 
 export async function createCompany(data: typeof companies.$inferInsert) {
-  const now = Date.now();
-  const db = await getDb();
-  if (!db) return { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-  await db.insert(companies).values(data);
-  const result = await db.select().from(companies).orderBy(desc(companies.createdAt)).limit(1);
-  return result[0];
+  return runQuery(
+    async (db) => {
+      await db.insert(companies).values(data);
+      const result = await db.select().from(companies).orderBy(desc(companies.createdAt)).limit(1);
+      return result[0];
+    },
+    () => (data as any)
+  );
 }
 
 export async function createJobPosting(data: typeof jobPostings.$inferInsert) {
-  const now = Date.now();
-  const db = await getDb();
-  if (!db) return { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-  await db.insert(jobPostings).values(data);
-  const result = await db.select().from(jobPostings).orderBy(desc(jobPostings.createdAt)).limit(1);
-  return result[0];
-}
-
-export async function getInterviewQuestions(userId: number) {
-  const db = await getDb();
-  if (!db) return getMockStore().interviewQuestions.filter((i: any) => i.userId === userId);
-  return db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId));
-}
-
-export async function getSchedules(userId: number) {
-  const db = await getDb();
-  if (!db) return getMockStore().schedules.filter((i: any) => i.userId === userId);
-  return db.select().from(schedules).where(eq(schedules.userId, userId));
-}
-
-export async function getCompanyBookmarks(userId: number) {
-  const db = await getDb();
-  if (!db) return getMockStore().bookmarks.filter((i: any) => i.userId === userId);
-  return db.select().from(companyBookmarks).where(eq(companyBookmarks.userId, userId));
-}
-
-export async function getChecklistItems(userId: number) {
-  const db = await getDb();
-  if (!db) return getMockStore().checklist.filter((i: any) => i.userId === userId);
-  return db.select().from(checklistItems).where(eq(checklistItems.userId, userId));
+  return runQuery(
+    async (db) => {
+      await db.insert(jobPostings).values(data);
+      const result = await db.select().from(jobPostings).orderBy(desc(jobPostings.createdAt)).limit(1);
+      return result[0];
+    },
+    () => (data as any)
+  );
 }
 
 export async function updateUserProfile(userId: number, data: any) {
-  const db = await getDb();
-  if (!db) {
-    const store = getMockStore();
-    const index = store.users.findIndex((u: any) => u.id === userId);
-    if (index !== -1) {
-      store.users[index] = { ...store.users[index], ...data, updatedAt: Date.now() };
-      saveMockStore(store);
-      return store.users[index];
+  return runQuery(
+    async (db) => {
+      await db.update(users).set(data).where(eq(users.id, userId));
+      const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      return result[0];
+    },
+    () => (data as any)
+  );
+}
+
+// ── Dashboard Summary ──────────────────────────────────────────
+export async function getDashboardSummary(userId: number) {
+  return runQuery(
+    async (db) => {
+      const now = Date.now();
+      
+      // 병렬 쿼리 실행
+      const [
+        cvCount,
+        resumeCount,
+        bookmarkCount,
+        upcomingSchedules,
+        checklistData
+      ] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(coverLetters).where(eq(coverLetters.userId, userId)),
+        db.select({ count: sql<number>`count(*)` }).from(resumes).where(eq(resumes.userId, userId)),
+        db.select({ count: sql<number>`count(*)` }).from(companyBookmarks).where(eq(companyBookmarks.userId, userId)),
+        db.select().from(schedules).where(and(eq(schedules.userId, userId), sql`${schedules.scheduledAt} > ${now}`, eq(schedules.isCompleted, 0))).orderBy(asc(schedules.scheduledAt)).limit(3),
+        db.select().from(checklistItems).where(eq(checklistItems.userId, userId))
+      ]);
+
+      const totalChecklist = checklistData.length;
+      const completedChecklist = checklistData.filter(i => i.isCompleted).length;
+      const progress = totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0;
+
+      return {
+        counts: {
+          coverLetters: Number(cvCount[0].count),
+          resumes: Number(resumeCount[0].count),
+          bookmarks: Number(bookmarkCount[0].count),
+        },
+        upcomingSchedules,
+        checklist: {
+          progress,
+          items: checklistData.filter(i => !i.isCompleted).slice(0, 3)
+        }
+      };
+    },
+    (store) => {
+      const now = Date.now();
+      const userCVs = store.coverLetters.filter((i: any) => i.userId === userId);
+      const userResumes = store.resumes.filter((i: any) => i.userId === userId);
+      const userBookmarks = store.bookmarks.filter((i: any) => i.userId === userId);
+      const userSchedules = store.schedules.filter((i: any) => i.userId === userId && i.scheduledAt > now && !i.isCompleted);
+      const userChecklist = store.checklist.filter((i: any) => i.userId === userId);
+      
+      const completed = userChecklist.filter((i: any) => i.isCompleted).length;
+      const progress = userChecklist.length > 0 ? Math.round((completed / userChecklist.length) * 100) : 0;
+
+      return {
+        counts: {
+          coverLetters: userCVs.length,
+          resumes: userResumes.length,
+          bookmarks: userBookmarks.length,
+        },
+        upcomingSchedules: userSchedules.slice(0, 3),
+        checklist: {
+          progress,
+          items: userChecklist.filter((i: any) => !i.isCompleted).slice(0, 3)
+        }
+      };
     }
-    return undefined;
-  }
-  await db.update(users).set(data).where(eq(users.id, userId));
-  const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-  return result[0];
+  );
 }

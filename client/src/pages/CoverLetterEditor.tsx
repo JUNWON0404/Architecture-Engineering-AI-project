@@ -16,19 +16,16 @@ interface Props {
 
 type Step = 1 | 2 | 3 | 4;
 
-export default function CoverLetterEditor({ id }: Props) {
+export default function CoverLetterEditor({ id: _unusedId }: Props) {
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
-  const isEdit = !!id;
   const [currentStep, setCurrentStep] = useState<Step>(1);
+
+  // 마스터 자소서 데이터 가져오기 (없으면 자동 생성됨)
+  const { data: master, isLoading: isMasterLoading } = trpc.coverLetter.getMaster.useQuery();
 
   // 기존 이력서 목록 가져오기 (Step 1용)
   const { data: resumes = [] } = trpc.resume.list.useQuery();
-
-  const { data: existing } = trpc.coverLetter.get.useQuery(
-    { id: id! },
-    { enabled: isEdit }
-  );
 
   const [form, setForm] = useState({
     title: "",
@@ -43,60 +40,52 @@ export default function CoverLetterEditor({ id }: Props) {
     languageSkills: "", // 어학 성적
     experience: "",     // 주요 경력/인턴
     activities: "",     // 대외활동/수상
+    majorCourses: "",   // 주요 수강 과목
     // 2단계용
     keywords: "",   
     keyStory: "",
   });
 
   useEffect(() => {
-    if (existing) {
+    if (master) {
       setForm({
-        title: existing.title,
-        company: existing.company ?? "",
-        position: existing.position ?? "",
-        content: existing.content ?? "",
-        status: existing.status,
-        major: "",
-        gpa: "",
-        certifications: "",
+        title: master.title,
+        company: master.company ?? "",
+        position: master.position ?? "",
+        content: master.content ?? "",
+        status: master.status as "draft" | "completed" | "submitted",
+        major: (master as any).major ?? "",
+        gpa: (master as any).gpa ?? "",
+        certifications: (master as any).certifications ?? "",
         languageSkills: "",
-        experience: "", 
-        activities: "",
-        keywords: "",
-        keyStory: "",
+        experience: (master as any).experience ?? "", 
+        activities: (master as any).activities ?? "",
+        majorCourses: (master as any).majorCourses ?? "",
+        keywords: (master as any).keywords ?? "",
+        keyStory: (master as any).keyStory ?? "",
       });
     }
-  }, [existing]);
-
-  const createMutation = trpc.coverLetter.create.useMutation({
-    onSuccess: () => {
-      toast.success("자기소개서가 저장되었습니다.");
-      utils.coverLetter.list.invalidate();
-      navigate("/cover-letters");
-    },
-    onError: () => toast.error("저장에 실패했습니다."),
-  });
+  }, [master]);
 
   const updateMutation = trpc.coverLetter.update.useMutation({
     onSuccess: () => {
-      toast.success("자기소개서가 수정되었습니다.");
-      utils.coverLetter.list.invalidate();
-      navigate("/cover-letters");
+      toast.success("마스터 자소서가 업데이트되었습니다.");
+      utils.coverLetter.getMaster.invalidate();
     },
-    onError: () => toast.error("수정에 실패했습니다."),
+    onError: () => toast.error("업데이트에 실패했습니다."),
+  });
+
+  const generateMutation = trpc.coverLetter.generate.useMutation({
+    onSuccess: (data) => {
+      setForm(prev => ({ ...prev, content: data.content }));
+      toast.success("AI 초안이 생성되었습니다.");
+    },
+    onError: () => toast.error("AI 초안 생성에 실패했습니다."),
   });
 
   const handleSave = () => {
-    if (!form.title.trim()) {
-      toast.error("3단계에서 자기소개서 제목을 입력해 주세요.");
-      setCurrentStep(3);
-      return;
-    }
-    if (isEdit) {
-      updateMutation.mutate({ id: id!, ...form });
-    } else {
-      createMutation.mutate(form);
-    }
+    if (!master) return;
+    updateMutation.mutate({ id: master.id, ...form });
   };
 
   const nextStep = () => {
@@ -104,21 +93,35 @@ export default function CoverLetterEditor({ id }: Props) {
       toast.error("최소한 전공 정보는 입력해 주세요.");
       return;
     }
-    if (currentStep === 2 && (!form.keywords.trim() || !form.keyStory.trim())) {
-      toast.error("핵심 키워드와 스토리를 입력해 주세요.");
-      return;
+    // 각 단계 이동 시 자동 저장
+    if (master) {
+      updateMutation.mutate({ id: master.id, ...form });
     }
     setCurrentStep((prev) => (prev + 1) as Step);
   };
   
-  const prevStep = () => setCurrentStep((prev) => (prev - 1) as Step);
+  const prevStep = () => {
+    // 이전 단계로 갈 때도 자동 저장
+    if (master) {
+      updateMutation.mutate({ id: master.id, ...form });
+    }
+    setCurrentStep((prev) => (prev - 1) as Step);
+  };
 
   const importResume = (content: string) => {
     setForm(prev => ({ ...prev, experience: content }));
     toast.success("이력서 내용을 경력 사항에 가져왔습니다.");
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending;
+  const isPending = updateMutation.isPending;
+
+  if (isMasterLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[600px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   const steps = [
     { id: 1, title: "기본 이력" },
@@ -128,158 +131,248 @@ export default function CoverLetterEditor({ id }: Props) {
   ];
 
   return (
-    <div className="p-6 md:p-8 max-w-4xl mx-auto">
+    <div className="p-8 md:p-12 max-w-5xl mx-auto">
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex items-center gap-6 mb-12">
         <button
-          onClick={() => navigate("/cover-letters")}
-          className="p-2 rounded-lg hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
+          onClick={() => navigate("/dashboard")}
+          className="p-3 rounded-xl hover:bg-muted transition-colors text-muted-foreground hover:text-foreground border border-transparent hover:border-border"
         >
-          <ArrowLeftIcon className="w-5 h-5" />
+          <ArrowLeftIcon className="w-6 h-6" />
         </button>
         <div className="flex-1">
-          <h1 className="text-2xl font-bold text-foreground">
-            {isEdit ? "자기소개서 수정" : "새 자기소개서 작성"}
+          <h1 className="text-3xl font-black text-foreground tracking-tight">
+            마스터 자소서 관리
           </h1>
-          <p className="text-muted-foreground text-sm mt-0.5">데이터 기반의 맞춤형 자기소개서 작성</p>
+          <p className="text-muted-foreground text-base mt-1 font-medium">나의 모든 경험을 집대성한 단 하나의 마스터 초안</p>
         </div>
       </div>
 
       {/* Stepper */}
-      <div className="flex items-center justify-between mb-10 px-2">
+      <div className="flex items-center justify-between mb-16 px-4">
         {steps.map((s, idx) => (
           <div key={s.id} className="flex items-center flex-1 last:flex-none">
-            <div className="flex flex-col items-center gap-2">
+            <div className="flex flex-col items-center gap-3">
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-all ${
+                className={`w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all ${
                   currentStep === s.id
-                    ? "border-primary bg-primary text-primary-foreground font-bold shadow-md shadow-primary/20"
+                    ? "border-primary bg-primary text-primary-foreground font-black shadow-xl shadow-primary/30 scale-110"
                     : currentStep > s.id
                     ? "border-primary bg-primary/10 text-primary"
                     : "border-muted-foreground/30 text-muted-foreground"
                 }`}
               >
-                {currentStep > s.id ? <CheckCircle2Icon className="w-6 h-6" /> : s.id}
+                {currentStep > s.id ? <CheckCircle2Icon className="w-8 h-8" /> : <span className="text-lg font-black">{s.id}</span>}
               </div>
-              <span className={`text-xs font-medium ${currentStep === s.id ? "text-primary" : "text-muted-foreground"}`}>
+              <span className={`text-sm font-bold ${currentStep === s.id ? "text-primary" : "text-muted-foreground"}`}>
                 {s.title}
               </span>
             </div>
             {idx < steps.length - 1 && (
-              <div className={`h-[2px] flex-1 mx-4 transition-colors ${currentStep > s.id ? "bg-primary" : "bg-muted-foreground/20"}`} />
+              <div className={`h-[3px] flex-1 mx-6 transition-colors ${currentStep > s.id ? "bg-primary" : "bg-muted-foreground/20"}`} />
             )}
           </div>
         ))}
       </div>
 
       {/* Content Area */}
-      <Card className="p-6 md:p-8 border-border/50 shadow-sm min-h-[550px] flex flex-col">
+      <Card className="p-10 md:p-16 border-border/50 shadow-xl rounded-[3rem] min-h-[700px] flex flex-col bg-white">
         {currentStep === 1 && (
-          <div className="space-y-8 flex-1">
-            <div className="space-y-2 text-center pb-4 border-b border-border/40">
-              <Label className="text-2xl font-black flex items-center justify-center gap-2 text-primary">
-                <SparklesIcon className="w-6 h-6" />
-                Step 1. 브레인스토밍 (Brainstorming)
+          <div className="space-y-12 flex-1 text-left">
+            <div className="space-y-4 text-center pb-10 border-b border-slate-200">
+              <div className="inline-flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-full text-indigo-600 text-sm font-black uppercase tracking-widest mb-2">
+                <SparklesIcon className="w-4 h-4" />
+                Step 1. 브레인스토밍
+              </div>
+              <Label className="text-4xl md:text-5xl font-black text-slate-900 block tracking-tighter">
+                나만의 <span className="text-indigo-600 italic">필살기</span>를 던져보세요
               </Label>
-              <p className="text-sm text-muted-foreground font-medium">
-                문장을 쓰지 마세요. 생각나는 <span className="text-foreground font-bold">#단어</span>와 <span className="text-foreground font-bold">#키워드</span>만 가볍게 던져보세요.
+              <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+                떠오르는 <span className="text-slate-900">#키워드</span>와 <span className="text-slate-900">#에피소드</span>만 나열해도 <br /> 건설사 맞춤형 문장의 훌륭한 재료가 됩니다.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-4">
-              {/* 학력 & 스펙 키워드 */}
-              <div className="space-y-4 p-5 rounded-2xl bg-muted/20 border border-border/50">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-muted-foreground uppercase tracking-wider">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  학력 및 기본 스펙
-                </h3>
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground ml-1">전공 및 학점</Label>
-                    <div className="flex gap-2">
-                      <Input 
-                        placeholder="#건축공학" 
-                        value={form.major}
-                        onChange={(e) => setForm({ ...form, major: e.target.value })}
-                        className="rounded-xl bg-background border-none shadow-sm focus:ring-2 focus:ring-primary/20"
-                      />
-                      <Input 
-                        placeholder="#4.0" 
-                        value={form.gpa}
-                        onChange={(e) => setForm({ ...form, gpa: e.target.value })}
-                        className="w-24 rounded-xl text-center bg-background border-none shadow-sm"
-                      />
+            {/* Resume Import Section */}
+            {resumes.length > 0 && (
+              <div className="p-8 rounded-[2rem] bg-slate-100/80 border border-slate-200 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                <div className="flex items-center gap-5">
+                  <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-md border border-slate-200">
+                    <CopyIcon className="w-7 h-7 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xl font-black text-slate-900 tracking-tight">내 이력서 데이터 활용하기</p>
+                    <p className="text-sm text-slate-600">저장된 이력서의 내용을 브레인스토밍 재료로 가져옵니다.</p>
+                  </div>
+                </div>
+                <Select onValueChange={(val) => {
+                  const r = resumes.find((r: any) => r.id === Number(val));
+                  if (r) importResume(r.content || "");
+                }}>
+                  <SelectTrigger className="w-full md:w-72 h-14 rounded-2xl bg-white border-slate-300 shadow-sm text-slate-900 focus:ring-indigo-500/20">
+                    <SelectValue placeholder="이력서 선택..." />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-2xl border-slate-200">
+                    {resumes.map((r: any) => (
+                      <SelectItem key={r.id} value={r.id.toString()} className="h-12 text-slate-800">
+                        {r.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="space-y-16 max-w-4xl mx-auto">
+              {/* 학력 및 전공 */}
+              <div className="space-y-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                    <CheckCircle2Icon className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">학력 및 기본 스펙</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                  <div className="space-y-4">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">전공 및 학점</Label>
+                    <div className="flex gap-3">
+                      <div className="relative flex-1">
+                        <Input 
+                          placeholder="전공 (예: 건축공학)" 
+                          value={form.major}
+                          onChange={(e) => setForm({ ...form, major: e.target.value })}
+                          className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
+                        />
+                      </div>
+                      <div className="relative w-32">
+                        <Input 
+                          placeholder="학점" 
+                          value={form.gpa}
+                          onChange={(e) => setForm({ ...form, gpa: e.target.value })}
+                          className="rounded-2xl h-16 text-center bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all font-mono text-2xl text-slate-900 placeholder:text-slate-400"
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground ml-1">어학 및 자격증</Label>
+
+                  <div className="space-y-4">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">주요 수강 과목 (전공 심화)</Label>
                     <Input 
-                      placeholder="#토익900 #건축기사 #CAD마스터" 
+                      placeholder="예: 구조역학, 건축시공학, 건설관리(CM)" 
+                      value={form.majorCourses}
+                      onChange={(e) => setForm({ ...form, majorCourses: e.target.value })}
+                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
+                    />
+                    <div className="flex flex-wrap gap-2 px-1">
+                      {["#전공심화", "#실무연계", "#수석수료", "#설계A+"].map(t => (
+                        <button key={t} onClick={() => setForm(prev => ({ ...prev, majorCourses: prev.majorCourses ? `${prev.majorCourses}, ${t}` : t }))} className="text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl border border-indigo-100 transition-all shadow-sm">{t} +</button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-2 space-y-4">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">자격증 및 어학</Label>
+                    <Input 
+                      placeholder="#건축기사 #토익900 #CAD #BIM #컴활1급" 
                       value={form.certifications}
                       onChange={(e) => setForm({ ...form, certifications: e.target.value })}
-                      className="rounded-xl bg-background border-none shadow-sm"
+                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* 경험 키워드 */}
-              <div className="space-y-4 p-5 rounded-2xl bg-primary/[0.03] border border-primary/10">
-                <h3 className="text-sm font-bold flex items-center gap-2 text-primary/70 uppercase tracking-wider">
-                  <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                  경험 및 활동 키워드
-                </h3>
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground ml-1">주요 경험 (인턴/프로젝트)</Label>
-                    <Input 
-                      placeholder="#삼성건설인턴 #BIM설계프로젝트 #해외봉사" 
+              {/* 경험 및 활동 */}
+              <div className="space-y-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg">
+                    <SparklesIcon className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">경험 및 활동 키워드</h3>
+                </div>
+                
+                <div className="space-y-10">
+                  <div className="space-y-4">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">인턴 / 프로젝트 / 대외활동</Label>
+                    <textarea 
+                      placeholder="#삼성건설인턴 #BIM프로젝트 #현장실습 #해외봉사" 
                       value={form.experience}
                       onChange={(e) => setForm({ ...form, experience: e.target.value })}
-                      className="rounded-xl bg-background border-none shadow-sm"
+                      className="w-full min-h-[220px] rounded-[2rem] bg-slate-100 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition-all p-8 text-xl text-slate-900 placeholder:text-slate-400 resize-none outline-none leading-relaxed"
                     />
+                    <div className="flex flex-wrap gap-3">
+                      {[
+                        "3개월간 현장 실습하며 도면 검토 역량을 키웠습니다.",
+                        "BIM 프로젝트를 통해 설계 효율을 15% 개선했습니다.",
+                        "현장 안전 관리 보조를 수행하며 0건의 사고를 기록했습니다."
+                      ].map((s, i) => (
+                        <button key={i} onClick={() => setForm(prev => ({ ...prev, experience: prev.experience ? `${prev.experience}\n- ${s}` : s }))} className="text-xs text-left text-emerald-800 bg-emerald-50 hover:bg-emerald-100 p-4 rounded-2xl border border-emerald-200 transition-all shadow-sm">"{s}" +</button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs text-muted-foreground ml-1">강점 및 기타 키워드</Label>
+                  
+                  <div className="space-y-4">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">강점 및 가치관 (Soft Skills)</Label>
                     <Input 
-                      placeholder="#협업능력 #현장중심 #꼼꼼한성격" 
+                      placeholder="#협업전문가 #공기단축 #안전제일 #해결사" 
                       value={form.activities}
                       onChange={(e) => setForm({ ...form, activities: e.target.value })}
-                      className="rounded-xl bg-background border-none shadow-sm"
+                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
                     />
+                    <div className="flex flex-wrap gap-3 pt-1">
+                      {["#철저한안전", "#원활한소통", "#끝까지완수", "#데이터기반", "#정직한현장"].map(t => (
+                        <button key={t} onClick={() => setForm(prev => ({ ...prev, activities: prev.activities ? `${prev.activities}, ${t}` : t }))} className="text-xs text-slate-700 bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-xl border border-slate-300 transition-all shadow-sm">{t} +</button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-100/50 flex items-start gap-3">
-              <div className="bg-yellow-400 text-white p-1 rounded-md text-[10px] font-bold mt-0.5">RULE</div>
-              <p className="text-[11px] text-yellow-700 leading-relaxed">
-                이곳은 자소서를 직접 쓰는 곳이 아닙니다. <br />
-                <strong>핵심 단어</strong>만 나열해두면, 다음 단계에서 AI와 함께 문장으로 구체화할 수 있습니다.
-              </p>
+            <div className="bg-slate-900 border-none p-12 rounded-[3rem] flex items-start gap-8 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 rounded-full blur-[100px] -mr-32 -mt-32" />
+              <div className="bg-indigo-500/20 text-indigo-400 p-4 rounded-2xl shrink-0 z-10">
+                <SparklesIcon className="w-10 h-10" />
+              </div>
+              <div className="space-y-4 z-10 text-left">
+                <p className="text-2xl font-black text-white leading-none tracking-tight">건설사 맞춤형 가이드</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-2">
+                  <div className="space-y-2">
+                    <p className="text-lg text-indigo-300 font-black flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-indigo-400" /> 전공 지식의 현장 연결
+                    </p>
+                    <p className="text-sm text-slate-400 leading-relaxed">수강 과목 중 실제 현장에서 쓰일 만한 지식을 연결해 보세요. (예: 시공학 -&gt; 거푸집 공법)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-lg text-emerald-400 font-black flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-emerald-400" /> 결과보다는 과정(STAR)
+                    </p>
+                    <p className="text-sm text-slate-400 leading-relaxed">단순 결과보다는 과정에서 마주한 '문제'와 '해결책'을 구체적으로 적어보세요.</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
         {currentStep === 2 && (
-          <div className="space-y-6 flex-1">
-            <div className="space-y-2">
-              <Label className="text-xl font-bold">Step 2. 핵심 키워드 & 스토리 뱅크</Label>
-              <p className="text-sm text-muted-foreground">
-                이 기업에서 나를 어떻게 기억하길 원하시나요? 핵심 키워드와 이를 뒷받침할 구체적인 에피소드를 연결하세요.
+          <div className="space-y-12 flex-1">
+            <div className="space-y-4">
+              <Label className="text-3xl font-black text-slate-900 tracking-tight">Step 2. 핵심 키워드 & 스토리 뱅크</Label>
+              <p className="text-lg text-slate-500 leading-relaxed">
+                이 기업에서 나를 어떻게 기억하길 원하시나요? <br />핵심 키워드와 이를 뒷받침할 구체적인 에피소드를 연결하세요.
               </p>
             </div>
             
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">나의 핵심 역량 키워드</Label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {["#현장중심", "#데이터기반", "#협업전문가", "#공기단축", "#안전제일"].map(tag => (
+            <div className="space-y-10">
+              <div className="space-y-5">
+                <Label className="text-sm font-black text-slate-400 uppercase tracking-widest px-1">나의 핵심 역량 키워드</Label>
+                <div className="flex flex-wrap gap-3 mb-4">
+                  {["#현장중심", "#데이터기반", "#협업전문가", "#공기단축", "#안전제일", "#공정관리"].map(tag => (
                     <Badge 
                       key={tag} 
                       variant="outline" 
-                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors py-1.5 px-3 rounded-lg"
+                      className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-all py-2.5 px-5 rounded-xl text-sm border-slate-200"
                       onClick={() => setForm(prev => ({ ...prev, keywords: prev.keywords ? `${prev.keywords}, ${tag}` : tag }))}
                     >
                       {tag}
@@ -290,17 +383,17 @@ export default function CoverLetterEditor({ id }: Props) {
                   placeholder="위 태그를 클릭하거나 직접 입력하세요 (예: #문제해결력, #BIM전문가)" 
                   value={form.keywords}
                   onChange={(e) => setForm({ ...form, keywords: e.target.value })}
-                  className="rounded-xl border-border/60"
+                  className="rounded-2xl h-16 bg-slate-50 border-none focus:ring-2 focus:ring-primary/20 pl-6 text-lg text-slate-900"
                 />
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold flex items-center justify-between">
-                  주요 성공/해결 에피소드 (STAR)
-                  <span className="text-[10px] font-normal text-muted-foreground uppercase">최소 200자 이상 권장</span>
+              <div className="space-y-5">
+                <Label className="text-sm font-black text-slate-400 uppercase tracking-widest flex items-center justify-between px-1">
+                  주요 성공/해결 에피소드 (STAR 기법)
+                  <span className="text-xs text-primary bg-primary/5 px-3 py-1 rounded-full uppercase font-black">최소 200자 이상 권장</span>
                 </Label>
                 <textarea
-                  className="w-full min-h-[250px] px-4 py-4 text-sm bg-background border border-input rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all leading-relaxed"
+                  className="w-full min-h-[350px] px-8 py-8 text-lg bg-slate-50 border-none rounded-[2rem] outline-none focus:ring-2 focus:ring-primary/20 transition-all leading-relaxed text-slate-900"
                   placeholder="Situation (상황): 언제, 어디서 일어난 일인가요?
 Task (과제): 당신에게 주어진 목표나 당면한 문제는 무엇이었나요?
 Action (행동): 당신은 구체적으로 어떤 노력을 했나요? (자신의 기여도 중심)
@@ -314,75 +407,73 @@ Result (결과): 그 결과 어떤 성과를 냈나요? (수치나 구체적 변
         )}
 
         {currentStep === 3 && (
-          <div className="space-y-8 flex-1">
-            <div className="space-y-2">
-              <Label className="text-xl font-bold">Step 3. 지원 기업 및 타겟 직무</Label>
-              <p className="text-sm text-muted-foreground">
-                이제 이 자소서를 제출할 곳을 명확히 설정합니다. 기업의 인재상에 맞춰 내용을 튜닝할 준비를 합니다.
+          <div className="space-y-12 flex-1">
+            <div className="space-y-4">
+              <Label className="text-3xl font-black text-slate-900 tracking-tight">Step 3. 지원 기업 및 타겟 직무</Label>
+              <p className="text-lg text-slate-500 leading-relaxed">
+                이제 이 자소서를 제출할 곳을 명확히 설정합니다. <br />기업의 인재상에 맞춰 내용을 튜닝할 준비를 합니다.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="md:col-span-2 space-y-3">
-                <Label htmlFor="title" className="text-sm font-semibold">자기소개서 관리 제목 <span className="text-destructive">*</span></Label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+              <div className="md:col-span-2 space-y-5">
+                <Label htmlFor="title" className="text-sm font-black text-slate-400 uppercase tracking-widest px-1">자기소개서 관리 제목 <span className="text-destructive">*</span></Label>
                 <Input
                   id="title"
                   placeholder="예: 2026 현대건설 상반기 플랜트 시공직무"
                   value={form.title}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className="rounded-xl h-12 text-base"
+                  className="rounded-2xl h-16 bg-slate-50 border-none focus:ring-2 focus:ring-primary/20 pl-6 text-xl font-black"
                 />
-                <p className="text-[11px] text-muted-foreground ml-1">나중에 목록에서 식별하기 쉬운 이름으로 정해주세요.</p>
+                <p className="text-xs text-slate-400 ml-2 italic">※ 나중에 목록에서 식별하기 쉬운 이름으로 정해주세요.</p>
               </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="company" className="text-sm font-semibold">지원 기업명</Label>
-                <div className="relative">
-                  <Input
-                    id="company"
-                    placeholder="예: 현대건설"
-                    value={form.company}
-                    onChange={(e) => setForm({ ...form, company: e.target.value })}
-                    className="rounded-xl h-11"
-                  />
-                </div>
+              <div className="space-y-5">
+                <Label htmlFor="company" className="text-sm font-black text-slate-400 uppercase tracking-widest px-1">지원 기업명</Label>
+                <Input
+                  id="company"
+                  placeholder="예: 현대건설"
+                  value={form.company}
+                  onChange={(e) => setForm({ ...form, company: e.target.value })}
+                  className="rounded-2xl h-16 bg-slate-50 border-none focus:ring-2 focus:ring-primary/20 pl-6 text-lg text-slate-900"
+                />
               </div>
 
-              <div className="space-y-3">
-                <Label htmlFor="position" className="text-sm font-semibold">지원 직무</Label>
+              <div className="space-y-5">
+                <Label htmlFor="position" className="text-sm font-black text-slate-400 uppercase tracking-widest px-1">지원 직무</Label>
                 <Input
                   id="position"
                   placeholder="예: 토목 시공 / BIM 설계"
                   value={form.position}
                   onChange={(e) => setForm({ ...form, position: e.target.value })}
-                  className="rounded-xl h-11"
+                  className="rounded-2xl h-16 bg-slate-50 border-none focus:ring-2 focus:ring-primary/20 pl-6 text-lg text-slate-900"
                 />
               </div>
 
-              <div className="space-y-3">
-                <Label className="text-sm font-semibold">현재 작성 상태</Label>
+              <div className="space-y-5">
+                <Label className="text-sm font-black text-slate-400 uppercase tracking-widest px-1">현재 작성 상태</Label>
                 <Select
                   value={form.status}
                   onValueChange={(v) => setForm({ ...form, status: v as typeof form.status })}
                 >
-                  <SelectTrigger className="rounded-xl h-11">
+                  <SelectTrigger className="rounded-2xl h-16 bg-slate-50 border-none focus:ring-2 focus:ring-primary/20 pl-6 text-lg text-slate-900">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="draft">초안 작성 중</SelectItem>
-                    <SelectItem value="completed">작성 완료 (제출 전)</SelectItem>
-                    <SelectItem value="submitted">제출 완료</SelectItem>
+                  <SelectContent className="rounded-2xl border-slate-200">
+                    <SelectItem value="draft" className="h-12 text-base">초안 작성 중</SelectItem>
+                    <SelectItem value="completed" className="h-12 text-base">작성 완료 (제출 전)</SelectItem>
+                    <SelectItem value="submitted" className="h-12 text-base">제출 완료</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
-            <div className="mt-4 p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-start gap-3">
-              <SparklesIcon className="w-5 h-5 text-primary mt-0.5" />
+            <div className="mt-8 p-8 bg-primary/5 rounded-[2rem] border border-primary/10 flex items-start gap-5">
+              <SparklesIcon className="w-8 h-8 text-primary mt-1" />
               <div>
-                <h4 className="text-sm font-semibold text-primary">Tip: 다음 단계 안내</h4>
-                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                  [다음 단계]를 누르면 지금까지 입력한 <b>기본 이력, 키워드, 기업 정보</b>를 바탕으로 전체 내용을 조립할 수 있는 편집기가 나타납니다.
+                <h4 className="text-lg font-black text-primary tracking-tight">Tip: 다음 단계 안내</h4>
+                <p className="text-base text-slate-600 mt-2 leading-relaxed">
+                  [다음 단계]를 누르면 지금까지 입력한 <span className="text-slate-900">기본 이력, 키워드, 기업 정보</span>를 바탕으로 전체 내용을 조립할 수 있는 강력한 편집기가 나타납니다.
                 </p>
               </div>
             </div>
@@ -390,21 +481,33 @@ Result (결과): 그 결과 어떤 성과를 냈나요? (수치나 구체적 변
         )}
 
         {currentStep === 4 && (
-          <div className="space-y-6 flex-1">
-            <div className="space-y-2 flex justify-between items-center">
+          <div className="space-y-8 flex-1">
+            <div className="space-y-4 flex flex-col md:flex-row md:justify-between md:items-center gap-6">
               <div>
-                <Label className="text-xl font-bold">Step 4. 최종 자기소개서 완성</Label>
-                <p className="text-sm text-muted-foreground">재료들이 모두 준비되었습니다. 내용을 구성해 보세요.</p>
+                <Label className="text-3xl font-black text-slate-900 tracking-tight">Step 4. 최종 자기소개서 완성</Label>
+                <p className="text-lg text-slate-500 mt-1">재료들이 모두 준비되었습니다. 내용을 멋지게 구성해 보세요.</p>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-mono text-muted-foreground bg-muted px-2 py-1 rounded">
-                  {form.content.length} 자
-                </p>
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="outline" 
+                  size="lg" 
+                  className="gap-3 border-primary/30 text-primary hover:bg-primary/5 h-14 px-8 rounded-2xl font-black text-base shadow-sm"
+                  onClick={() => generateMutation.mutate(form)}
+                  disabled={generateMutation.isPending}
+                >
+                  <SparklesIcon className={`w-5 h-5 ${generateMutation.isPending ? 'animate-pulse' : ''}`} />
+                  {generateMutation.isPending ? "AI 분석 및 작성 중..." : "AI 초안 생성"}
+                </Button>
+                <div className="bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
+                  <p className="text-sm text-slate-600 font-mono">
+                    {form.content.length} 자
+                  </p>
+                </div>
               </div>
             </div>
             <textarea
               id="content"
-              className="w-full min-h-[450px] px-4 py-4 text-sm bg-background border border-input rounded-xl focus:ring-2 focus:ring-primary/20 outline-none transition-all leading-relaxed"
+              className="w-full min-h-[550px] px-10 py-10 text-xl bg-slate-50 border-none rounded-[3rem] focus:ring-2 focus:ring-primary/20 outline-none transition-all leading-relaxed shadow-inner text-slate-900"
               placeholder="여기에 내용을 작성하세요..."
               value={form.content}
               onChange={(e) => setForm({ ...form, content: e.target.value })}

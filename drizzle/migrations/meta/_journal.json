@@ -1,19 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1775301907010,
-      "tag": "0000_superb_nebula",
+      "version": "7",
+      "when": 1775660378922,
+      "tag": "0000_dear_omega_flight",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1775305831563,
-      "tag": "0001_youthful_onslaught",
+      "version": "7",
+      "when": 1775732546707,
+      "tag": "0001_wakeful_thor_girl",
       "breakpoints": true
     }
   ]

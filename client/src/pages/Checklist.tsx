@@ -31,7 +31,7 @@ export default function Checklist() {
   const [filterCategory, setFilterCategory] = useState("all");
 
   const filtered = useMemo(() => {
-    return items.filter((item) => filterCategory === "all" || item.category === filterCategory);
+    return items.filter((item: any) => filterCategory === "all" || item.category === filterCategory);
   }, [items, filterCategory]);
 
   const completedCount = items.filter((i) => i.isCompleted).length;
@@ -164,7 +164,7 @@ export default function Checklist() {
               className="flex items-start gap-3 p-4 bg-card border border-border rounded-xl hover:shadow-sm hover:border-primary/30 transition-all group"
             >
               <button
-                onClick={() => toggleComplete(item.id, item.isCompleted ?? false)}
+                onClick={() => toggleComplete(item.id, !!item.isCompleted)}
                 className={`flex-shrink-0 w-6 h-6 rounded-md border-2 flex items-center justify-center transition-all ${
                   item.isCompleted
                     ? "bg-primary border-primary"

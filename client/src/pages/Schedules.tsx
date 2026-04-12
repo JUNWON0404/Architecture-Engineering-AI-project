@@ -62,7 +62,7 @@ export default function Schedules() {
     onMutate: async ({ id }) => {
       await utils.schedule.list.cancel();
       const prev = utils.schedule.list.getData();
-      utils.schedule.list.setData(undefined, (old) => old?.filter((s) => s.id !== id));
+      utils.schedule.list.setData(undefined, (old: any) => old?.filter((s: any) => s.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {

@@ -14,7 +14,6 @@ import InterviewQuestions from "./pages/InterviewQuestions";
 import Resumes from "./pages/Resumes";
 import ResumeEditor from "./pages/ResumeEditor";
 import Schedules from "./pages/Schedules";
-import Bookmarks from "./pages/Bookmarks";
 import Checklist from "./pages/Checklist";
 import Profile from "./pages/Profile";
 import AppLayout from "./components/AppLayout";
@@ -22,13 +21,16 @@ import AppLayout from "./components/AppLayout";
 function Router() {
   return (
     <Switch>
-      {/* 공개 페이지 */}
-      <Route path="/" component={Home} />
       {/* 인증 페이지 */}
       <Route path="/login" component={Login} />
       <Route path="/signup" component={SignUp} />
       
       {/* 보호된 페이지 (AppLayout 사용) */}
+      <Route path="/">
+        <AppLayout>
+          <Dashboard />
+        </AppLayout>
+      </Route>
       <Route path="/dashboard">
         <AppLayout>
           <Dashboard />
@@ -36,20 +38,8 @@ function Router() {
       </Route>
       <Route path="/cover-letters">
         <AppLayout>
-          <CoverLetters />
-        </AppLayout>
-      </Route>
-      <Route path="/cover-letters/new">
-        <AppLayout>
           <CoverLetterEditor />
         </AppLayout>
-      </Route>
-      <Route path="/cover-letters/:id">
-        {(params) => (
-          <AppLayout>
-            <CoverLetterEditor id={Number(params.id)} />
-          </AppLayout>
-        )}
       </Route>
       <Route path="/interview">
         <AppLayout>
@@ -78,11 +68,6 @@ function Router() {
           <Schedules />
         </AppLayout>
       </Route>
-      <Route path="/bookmarks">
-        <AppLayout>
-          <Bookmarks />
-        </AppLayout>
-      </Route>
       <Route path="/checklist">
         <AppLayout>
           <Checklist />
@@ -102,7 +87,7 @@ function Router() {
 function App() {
   return (
     <ErrorBoundary>
-      <ThemeProvider defaultTheme="light">
+      <ThemeProvider defaultTheme="light" switchable={true}>
         <TooltipProvider>
           <Toaster />
           <Router />

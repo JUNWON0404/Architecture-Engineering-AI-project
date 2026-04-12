@@ -35,7 +35,7 @@ export default function CoverLetters() {
       setDeletingId(id);
       await utils.coverLetter.list.cancel();
       const prev = utils.coverLetter.list.getData();
-      utils.coverLetter.list.setData(undefined, (old) => old?.filter((c) => c.id !== id));
+      utils.coverLetter.list.setData(undefined, (old: any) => old?.filter((c: any) => c.id !== id));
       return { prev };
     },
     onError: (_err, _vars, context) => {

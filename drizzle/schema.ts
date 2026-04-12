@@ -3,6 +3,7 @@ import {
   serial,
   text,
   integer,
+  bigint,
 } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
@@ -16,9 +17,9 @@ export const users = pgTable("users", {
   bio: text("bio"),
   targetJob: text("targetJob"),
   targetCompany: text("targetCompany"),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
-  lastSignedIn: integer("lastSignedIn").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+  lastSignedIn: bigint("lastSignedIn", { mode: "number" }).notNull(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -32,8 +33,20 @@ export const coverLetters = pgTable("cover_letters", {
   position: text("position"),
   content: text("content"),
   status: text("status").default("draft").notNull(),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  // 마스터 자소서 관리 필드
+  isMaster: integer("isMaster").default(0).notNull(), // 0: 일반, 1: 마스터
+  parentId: integer("parentId"), // 마스터로부터 생성된 경우 마스터 ID 기록
+  // 브레인스토밍 데이터
+  major: text("major"),
+  gpa: text("gpa"),
+  certifications: text("certifications"),
+  experience: text("experience"),
+  activities: text("activities"),
+  majorCourses: text("majorCourses"),
+  keywords: text("keywords"),
+  keyStory: text("keyStory"),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type CoverLetter = typeof coverLetters.$inferSelect;
@@ -49,8 +62,8 @@ export const interviewQuestions = pgTable("interview_questions", {
   position: text("position"),
   difficulty: text("difficulty").default("medium"),
   isPublic: integer("isPublic").default(0),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type InterviewQuestion = typeof interviewQuestions.$inferSelect;
@@ -62,8 +75,8 @@ export const resumes = pgTable("resumes", {
   title: text("title").notNull(),
   content: text("content"),
   isDefault: integer("isDefault").default(0),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type Resume = typeof resumes.$inferSelect;
@@ -75,11 +88,11 @@ export const schedules = pgTable("schedules", {
   title: text("title").notNull(),
   company: text("company"),
   type: text("type").default("other").notNull(),
-  scheduledAt: integer("scheduledAt").notNull(),
+  scheduledAt: bigint("scheduledAt", { mode: "number" }).notNull(),
   description: text("description"),
   isCompleted: integer("isCompleted").default(0),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type Schedule = typeof schedules.$inferSelect;
@@ -92,11 +105,11 @@ export const companyBookmarks = pgTable("company_bookmarks", {
   industry: text("industry"),
   position: text("position"),
   jobUrl: text("jobUrl"),
-  deadline: integer("deadline"),
+  deadline: bigint("deadline", { mode: "number" }),
   notes: text("notes"),
   status: text("status").default("interested").notNull(),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type CompanyBookmark = typeof companyBookmarks.$inferSelect;
@@ -110,8 +123,8 @@ export const checklistItems = pgTable("checklist_items", {
   category: text("category"),
   isCompleted: integer("isCompleted").default(0),
   order: integer("order").default(0),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type ChecklistItem = typeof checklistItems.$inferSelect;
@@ -121,15 +134,19 @@ export const companies = pgTable("companies", {
   id: serial("id").primaryKey(),
   name: text("name").notNull().unique(),
   sector: text("sector").notNull(), // 건설, 건축, 플랜트 등
+  rank: integer("rank"), // 시공능력평가 순위
+  brand: text("brand"), // 대표 브랜드 (래미안, 힐스테이트 등)
+  hiringSeason: text("hiringSeason"), // 주요 채용 시기
+  salaryGuide: text("salaryGuide"), // 초봉 가이드
   established: integer("established"), // 설립년도
-  employees: text("employees"), // 직원수 범위 예: "500-1000"
-  revenue: text("revenue"), // 매출 예: "100억원"
+  employees: text("employees"), // 직원수
+  revenue: text("revenue"), // 매출
   location: text("location"), // 본사 위치
   website: text("website"),
   description: text("description"), // 회사 소개
   thumbnail: text("thumbnail"), // 로고 이미지 URL
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type Company = typeof companies.$inferSelect;
@@ -144,11 +161,11 @@ export const jobPostings = pgTable("job_postings", {
   requiredMajors: text("requiredMajors"), // JSON string: ["토목공학", "건축학"]
   salary: text("salary"), // 연봉
   location: text("location"), // 근무지
-  postedAt: integer("postedAt").notNull(),
-  deadline: integer("deadline"), // 마감일
+  postedAt: bigint("postedAt", { mode: "number" }).notNull(),
+  deadline: bigint("deadline", { mode: "number" }), // 마감일
   isActive: integer("isActive").default(1),
-  createdAt: integer("createdAt").notNull(),
-  updatedAt: integer("updatedAt").notNull(),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
 });
 
 export type JobPosting = typeof jobPostings.$inferSelect;

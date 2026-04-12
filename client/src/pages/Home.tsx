@@ -359,12 +359,13 @@ export default function Home() {
             {filteredCompanies.map((company) => (
               <Card 
                 key={company.id} 
-                className="bg-white hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-default border-slate-200"
+                className="bg-white hover:shadow-xl transition-all duration-300 hover:-translate-y-1 cursor-pointer border-slate-200 group"
+                onClick={() => setSelectedCompanyId(company.id)}
               >
                 <CardHeader className="pb-3 bg-gradient-to-r from-blue-50 to-indigo-50">
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
-                      <CardTitle className="text-lg flex items-center gap-2 text-slate-900">
+                      <CardTitle className="text-lg flex items-center gap-2 text-slate-900 group-hover:text-indigo-600 transition-colors">
                         <Building2 className="w-5 h-5 text-blue-600" />
                         {company.name}
                       </CardTitle>
@@ -402,27 +403,16 @@ export default function Home() {
                     </p>
                   )}
 
-                  {(company.established || company.revenue) && (
-                    <div className="pt-2 space-y-1 text-xs text-slate-500">
-                      {company.established && (
-                        <p>
-                          <span className="font-medium">설립:</span> {company.established}년
-                        </p>
-                      )}
-                      {company.revenue && (
-                        <p>
-                          <span className="font-medium">매출:</span> {company.revenue}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
                   {/* 액션 버튼 */}
                   <div className="flex gap-2 pt-4 border-t border-slate-200">
                     <Button 
                       size="sm" 
                       variant="outline" 
                       className="flex-1 text-slate-600 hover:bg-slate-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedCompanyId(company.id);
+                      }}
                     >
                       상세보기
                     </Button>
@@ -430,11 +420,14 @@ export default function Home() {
                       size="sm" 
                       className={`flex-1 ${(company.jobPostingsCount ?? 0) > 0 ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300 cursor-not-allowed'}`}
                       disabled={(company.jobPostingsCount ?? 0) === 0}
-                      onClick={() => (company.jobPostingsCount ?? 0) > 0 && setSelectedCompanyId(company.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if ((company.jobPostingsCount ?? 0) > 0) setSelectedCompanyId(company.id);
+                      }}
                       title={(company.jobPostingsCount ?? 0) === 0 ? '등록된 채용공고가 없습니다' : `${company.jobPostingsCount}개의 채용공고`}
                     >
                       <Briefcase className="w-4 h-4 mr-1" />
-                      채용공고 ({company.jobPostingsCount ?? 0})
+                      채용공고
                     </Button>
                   </div>
                 </CardContent>

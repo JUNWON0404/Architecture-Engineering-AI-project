@@ -14,7 +14,7 @@
 
 - **Frontend**: React, TypeScript, TailwindCSS, Lucide-React
 - **Backend**: Node.js, Express, tRPC
-- **Database**: Drizzle ORM, SQLite (PostgreSQL 지원 예정)
+- **Database**: Drizzle ORM, PostgreSQL (Supabase)
 - **Tooling**: Vite, pnpm, tsx
 
 ## 🏁 시작하기

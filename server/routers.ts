@@ -1,9 +1,11 @@
+import { invokeLLM } from "./_core/llm";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { z } from "zod";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
 import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import Parser from "rss-parser";
 import {
   authenticateUser,
   createChecklistItem,
@@ -42,8 +44,39 @@ import {
   updateUserProfile,
 } from "./db";
 
+const rssParser = new Parser();
+
 export const appRouter = router({
   system: systemRouter,
+  
+  dashboard: router({
+    getSummary: protectedProcedure.query(({ ctx }) => getDashboardSummary(ctx.user.id)),
+  }),
+
+  news: router({
+    list: publicProcedure
+      .input(z.object({ companyName: z.string() }))
+      .query(async ({ input }) => {
+        try {
+          // 한국건설신문(conslove.co.kr) 뉴스만 필터링하여 Google News RSS 검색
+          const query = encodeURIComponent(`${input.companyName} site:conslove.co.kr`);
+          const url = `https://news.google.com/rss/search?q=${query}&hl=ko&gl=KR&ceid=KR:ko`;
+          
+          const feed = await rssParser.parseURL(url);
+          
+          return feed.items.slice(0, 5).map(item => ({
+            title: item.title?.split(" - ")[0] || "제목 없음",
+            link: item.link || "#",
+            pubDate: item.pubDate ? new Date(item.pubDate).toLocaleDateString("ko-KR") : "",
+            source: "한국건설신문"
+          }));
+        } catch (error) {
+          console.error("[News] RSS Fetch Error:", error);
+          return [];
+        }
+      }),
+  }),
+
   auth: router({
     // 현재 로그인한 사용자 정보 조회
     me: publicProcedure.query(({ ctx }) => {
@@ -56,6 +89,13 @@ export const appRouter = router({
           email: "dev@example.com",
           name: "개발 사용자",
           role: "user",
+          bio: "안녕하세요, 개발 사용자입니다.",
+          targetJob: "풀스택 개발자",
+          targetCompany: "구글",
+          loginMethod: "email",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          lastSignedIn: Date.now(),
         };
       }
       return ctx.user;
@@ -72,7 +112,7 @@ export const appRouter = router({
       }))
       .mutation(async ({ input, ctx }) => {
         try {
-          const user = await createUserWithEmail(input.email, input.password, input.name);
+          const user = await createUserWithEmail(input.email, input.password, input.name) as any;
           if (!user) throw new Error("사용자 생성 실패");
           const sessionToken = await sdk.createSessionToken(user.id.toString(), {
             name: user.name || "",
@@ -80,7 +120,7 @@ export const appRouter = router({
           });
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-          const { password, ...userWithoutPassword } = user;
+          const { password: _, ...userWithoutPassword } = user as any;
           return { success: true, user: userWithoutPassword };
         } catch (error) {
           const message = error instanceof Error ? error.message : "회원가입 실패";
@@ -105,7 +145,7 @@ export const appRouter = router({
           });
           const cookieOptions = getSessionCookieOptions(ctx.req);
           ctx.res.cookie(COOKIE_NAME, sessionToken, { ...cookieOptions, maxAge: ONE_YEAR_MS });
-          const { password, ...userWithoutPassword } = user;
+          const { password: _, ...userWithoutPassword } = user as any;
           return { success: true, user: userWithoutPassword };
         } catch (error) {
           const message = error instanceof Error ? error.message : "로그인 실패";
@@ -123,10 +163,33 @@ export const appRouter = router({
 
   // ── Cover Letters ──────────────────────────────────────────────
   coverLetter: router({
+    // 단일 마스터 자소서 가져오기
+    getMaster: protectedProcedure.query(async ({ ctx }) => {
+      const master = await getMasterCoverLetter(ctx.user.id);
+      if (master) return master;
+      
+      // 마스터가 아예 없으면 최초 1회 자동 생성 및 마스터 설정
+      const now = Date.now();
+      return createCoverLetter({
+        userId: ctx.user.id,
+        title: "나의 마스터 자소서",
+        status: "draft",
+        isMaster: 1,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }),
+    listBrief: protectedProcedure.query(({ ctx }) => getCoverLettersBrief(ctx.user.id)),
     list: protectedProcedure.query(({ ctx }) => getCoverLetters(ctx.user.id)),
     get: protectedProcedure.input(z.object({ id: z.number() })).query(({ ctx, input }) =>
       getCoverLetterById(input.id, ctx.user.id)
     ),
+    setMaster: protectedProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(({ ctx, input }) => setMasterCoverLetter(ctx.user.id, input.id)),
+    clone: protectedProcedure
+      .input(z.object({ masterId: z.number(), companyName: z.string() }))
+      .mutation(({ ctx, input }) => cloneCoverLetter(input.masterId, ctx.user.id, input.companyName)),
     create: protectedProcedure
       .input(z.object({
         title: z.string().min(1),
@@ -134,6 +197,14 @@ export const appRouter = router({
         position: z.string().optional(),
         content: z.string().optional(),
         status: z.enum(["draft", "completed", "submitted"]).optional(),
+        major: z.string().optional(),
+        gpa: z.string().optional(),
+        certifications: z.string().optional(),
+        experience: z.string().optional(),
+        activities: z.string().optional(),
+        majorCourses: z.string().optional(),
+        keywords: z.string().optional(),
+        keyStory: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         console.log("[Router] createCoverLetter input:", input);
@@ -147,6 +218,14 @@ export const appRouter = router({
           company: input.company || null,
           position: input.position || null,
           content: input.content || null,
+          major: input.major || null,
+          gpa: input.gpa || null,
+          certifications: input.certifications || null,
+          experience: input.experience || null,
+          activities: input.activities || null,
+          majorCourses: input.majorCourses || null,
+          keywords: input.keywords || null,
+          keyStory: input.keyStory || null,
         });
         console.log("[Router] createCoverLetter success:", result?.id);
         return result;
@@ -154,15 +233,77 @@ export const appRouter = router({
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
-        title: z.string().min(1).optional(),
+        title: z.string().optional(),
         company: z.string().optional(),
         position: z.string().optional(),
         content: z.string().optional(),
         status: z.enum(["draft", "completed", "submitted"]).optional(),
+        major: z.string().optional(),
+        gpa: z.string().optional(),
+        certifications: z.string().optional(),
+        experience: z.string().optional(),
+        activities: z.string().optional(),
+        keywords: z.string().optional(),
+        keyStory: z.string().optional(),
       }))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
-        return updateCoverLetter(id, ctx.user.id, data);
+        return updateCoverLetter(id, ctx.user.id, {
+          ...data,
+          updatedAt: Date.now(),
+        });
+      }),
+    generate: protectedProcedure
+      .input(z.object({
+        company: z.string().optional(),
+        position: z.string().optional(),
+        major: z.string().optional(),
+        gpa: z.string().optional(),
+        certifications: z.string().optional(),
+        experience: z.string().optional(),
+        activities: z.string().optional(),
+        keywords: z.string().optional(),
+        keyStory: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const prompt = `
+당신은 전문 취업 컨설턴트이자 건설사 채용 전문가입니다. 
+아래 제공된 사용자의 브레인스토밍 데이터와 지원 정보를 바탕으로, 건설사(건축/토목/플랜트 등)에 최적화된 전문적이고 매력적인 자기소개서 초안을 작성해주세요.
+
+[지원 정보]
+- 지원 기업: ${input.company || "미정"}
+- 지원 직무: ${input.position || "미정"}
+
+[사용자 데이터]
+- 전공: ${input.major || "미정"}
+- 학점: ${input.gpa || "미정"}
+- 자격증 및 스펙: ${input.certifications || "미정"}
+- 주요 경험: ${input.experience || "미정"}
+- 핵심 역량 키워드: ${input.keywords || "미정"}
+- 주요 에피소드(STAR): ${input.keyStory || "미정"}
+
+[작성 가이드라인]
+1. 건설 산업의 특성(안전, 현장 중심, 협업, 공기 준수 등)이 잘 드러나도록 작성하세요.
+2. 사용자가 제공한 구체적인 에피소드(STAR)를 자연스럽게 문장으로 풀어내세요.
+3. 전문적이고 신뢰감 있는 어조를 사용하되, 너무 딱딱하지 않게 작성하세요.
+4. 문단별로 소제목을 달아 가독성을 높여주세요.
+5. 분량은 약 1,000자 내외로 작성해주세요.
+
+자기소개서 초안만 출력하세요. 다른 설명은 생략하세요.
+        `;
+
+        const result = await invokeLLM({
+          messages: [{ role: "user", content: prompt }],
+        });
+
+        const content = result.choices[0].message.content;
+        return { 
+          content: typeof content === 'string' 
+            ? content 
+            : Array.isArray(content) 
+              ? content.map(p => 'text' in p ? p.text : '').join('') 
+              : JSON.stringify(content) 
+        };
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -185,9 +326,20 @@ export const appRouter = router({
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
         isPublic: z.boolean().optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createInterviewQuestion({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(({ ctx, input }) => {
+        const now = Date.now();
+        return createInterviewQuestion({
+          ...input,
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          isPublic: input.isPublic ? 1 : 0,
+          answer: input.answer || null,
+          category: input.category || null,
+          company: input.company || null,
+          position: input.position || null,
+        });
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -201,7 +353,10 @@ export const appRouter = router({
       }))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
-        return updateInterviewQuestion(id, ctx.user.id, data);
+        return updateInterviewQuestion(id, ctx.user.id, {
+          ...data,
+          isPublic: data.isPublic !== undefined ? (data.isPublic ? 1 : 0) : undefined,
+        });
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -243,7 +398,10 @@ export const appRouter = router({
       }))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
-        return updateResume(id, ctx.user.id, data);
+        return updateResume(id, ctx.user.id, {
+          ...data,
+          isDefault: data.isDefault !== undefined ? (data.isDefault ? 1 : 0) : undefined,
+        });
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -262,9 +420,18 @@ export const appRouter = router({
         description: z.string().optional(),
         isCompleted: z.boolean().optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createSchedule({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(({ ctx, input }) => {
+        const now = Date.now();
+        return createSchedule({
+          ...input,
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          isCompleted: input.isCompleted ? 1 : 0,
+          company: input.company || null,
+          description: input.description || null,
+        });
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -277,7 +444,10 @@ export const appRouter = router({
       }))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
-        return updateSchedule(id, ctx.user.id, data);
+        return updateSchedule(id, ctx.user.id, {
+          ...data,
+          isCompleted: data.isCompleted !== undefined ? (data.isCompleted ? 1 : 0) : undefined,
+        });
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -297,9 +467,21 @@ export const appRouter = router({
         notes: z.string().optional(),
         status: z.enum(["interested", "applied", "interview", "offer", "rejected"]).optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createCompanyBookmark({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(({ ctx, input }) => {
+        const now = Date.now();
+        return createCompanyBookmark({
+          ...input,
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          industry: input.industry || null,
+          position: input.position || null,
+          jobUrl: input.jobUrl || null,
+          deadline: input.deadline || null,
+          notes: input.notes || null,
+          status: input.status || "interested",
+        });
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -331,9 +513,19 @@ export const appRouter = router({
         isCompleted: z.boolean().optional(),
         order: z.number().optional(),
       }))
-      .mutation(({ ctx, input }) =>
-        createChecklistItem({ ...input, userId: ctx.user.id })
-      ),
+      .mutation(({ ctx, input }) => {
+        const now = Date.now();
+        return createChecklistItem({
+          ...input,
+          userId: ctx.user.id,
+          createdAt: now,
+          updatedAt: now,
+          isCompleted: input.isCompleted ? 1 : 0,
+          description: input.description || null,
+          category: input.category || null,
+          order: input.order ?? 0,
+        });
+      }),
     update: protectedProcedure
       .input(z.object({
         id: z.number(),
@@ -345,7 +537,10 @@ export const appRouter = router({
       }))
       .mutation(({ ctx, input }) => {
         const { id, ...data } = input;
-        return updateChecklistItem(id, ctx.user.id, data);
+        return updateChecklistItem(id, ctx.user.id, {
+          ...data,
+          isCompleted: data.isCompleted !== undefined ? (data.isCompleted ? 1 : 0) : undefined,
+        });
       }),
     delete: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -354,7 +549,15 @@ export const appRouter = router({
 
   // ── Companies ──────────────────────────────────────────────────
   company: router({
-    list: publicProcedure.query(() => getAllCompanies()),
+    list: publicProcedure
+      .input(z.object({
+        location: z.string().nullable().optional(),
+        sortBy: z.enum(["rank", "name", "recent"]).optional(),
+      }).optional())
+      .query(({ input }) => getAllCompanies({
+        ...input,
+        location: input?.location ?? undefined
+      })),
     get: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(({ input }) => getCompanyById(input.id)),
