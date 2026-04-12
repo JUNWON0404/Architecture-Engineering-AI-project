@@ -113,10 +113,6 @@ temp/
 *.sqlite
 *.sqlite3
 
-# Local mock data
-mock_db.json
-server/mock_db.json
-
 # Webdev artifacts (checkpoint zips, migrations, etc.)
 .webdev/
 

@@ -39,15 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  // 개발 환경(로컬 HTTP)에서는 sameSite: "lax", secure: false 사용
-  // HTTPS 요청(프로덕션, 테스트의 mock-https)에서는 sameSite: "none", secure: true 사용
-  const isSecure = req.protocol === "https" || isSecureRequest(req);
+  // 개발 환경에서는 sameSite: "lax" 사용
+  // 프로덕션에서는 sameSite: "none"과 secure: true 필요
   const isDev = process.env.NODE_ENV === "development";
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: isSecure ? "none" : "lax",
-    secure: isSecure,
+    sameSite: isDev ? "lax" : "none",
+    secure: isDev ? false : isSecureRequest(req),
   };
 }

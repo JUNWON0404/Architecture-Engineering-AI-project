@@ -3,7 +3,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeftIcon, SaveIcon, ChevronRightIcon, ChevronLeftIcon, CheckCircle2Icon, CopyIcon, SparklesIcon } from "lucide-react";
+import { 
+  ArrowLeftIcon, 
+  SaveIcon, 
+  ChevronRightIcon, 
+  ChevronLeftIcon, 
+  CheckCircle2Icon, 
+  CopyIcon, 
+  SparklesIcon,
+  PlusIcon,
+  Trash2Icon,
+  XIcon
+} from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
@@ -15,6 +26,52 @@ interface Props {
 }
 
 type Step = 1 | 2 | 3 | 4;
+
+interface Experience {
+  id: string;
+  type: "intern" | "project" | "activity" | "other";
+  title: string;
+  period: string;
+  role: string;
+  keyAction: string;
+  result: string;
+  learned: string;
+}
+
+const EXPERIENCE_GUIDES = {
+  intern: {
+    title: "인턴/현장실습",
+    questions: [
+      "담당했던 공종이나 공정은 무엇이었나요?",
+      "현장 대리인이나 사수로부터 배운 실무 노하우는?",
+      "안전 관리나 도면 검토 시 본인만의 꼼꼼함이 발휘된 사례는?"
+    ]
+  },
+  project: {
+    title: "프로젝트/공모전",
+    questions: [
+      "본인이 담당한 설계/해석 파트는 어디였나요?",
+      "협업 과정에서 발생한 의견 충돌과 해결 과정은?",
+      "BIM이나 특정 툴을 활용해 효율을 높인 경험은?"
+    ]
+  },
+  activity: {
+    title: "대외활동/봉사",
+    questions: [
+      "열악한 환경(해외봉사 등)을 극복한 본인만의 마인드는?",
+      "다양한 사람들과 소통하며 팀워크를 이끌어낸 방법은?",
+      "현장 실습 외에 직무 전문성을 쌓기 위해 노력한 점은?"
+    ]
+  },
+  other: {
+    title: "기타 경험",
+    questions: [
+      "이 경험이 건설업 직무 수행에 어떻게 도움이 될까요?",
+      "본인만의 성실함이나 책임감이 가장 잘 드러난 순간은?",
+      "실패를 통해 배운 교훈은 무엇인가요?"
+    ]
+  }
+};
 
 export default function CoverLetterEditor({ id: _unusedId }: Props) {
   const [, navigate] = useLocation();
@@ -33,18 +90,44 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     position: "",
     content: "",
     status: "draft" as "draft" | "completed" | "submitted",
-    // 1단계: 세분화된 기본 정보
-    major: "",          // 전공
-    gpa: "",            // 학점
-    certifications: "", // 자격증
-    languageSkills: "", // 어학 성적
-    experience: "",     // 주요 경력/인턴
-    activities: "",     // 대외활동/수상
-    majorCourses: "",   // 주요 수강 과목
-    // 2단계용
-    keywords: "",   
+    major: "",
+    gpa: "",
+    certifications: "",
+    languageSkills: "",
+    experience: "[]", // JSON string for Experience[]
+    activities: "",
+    majorCourses: "",
+    keywords: "",
     keyStory: "",
   });
+
+  const experiences: Experience[] = JSON.parse(form.experience || "[]");
+
+  const setExperiences = (exps: Experience[]) => {
+    setForm(prev => ({ ...prev, experience: JSON.stringify(exps) }));
+  };
+
+  const addExperience = (type: Experience["type"]) => {
+    const newExp: Experience = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      title: "",
+      period: "",
+      role: "",
+      keyAction: "",
+      result: "",
+      learned: "",
+    };
+    setExperiences([...experiences, newExp]);
+  };
+
+  const updateExperience = (id: string, updates: Partial<Experience>) => {
+    setExperiences(experiences.map(exp => exp.id === id ? { ...exp, ...updates } : exp));
+  };
+
+  const removeExperience = (id: string) => {
+    setExperiences(experiences.filter(exp => exp.id !== id));
+  };
 
   useEffect(() => {
     if (master) {
@@ -58,7 +141,7 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
         gpa: (master as any).gpa ?? "",
         certifications: (master as any).certifications ?? "",
         languageSkills: "",
-        experience: (master as any).experience ?? "", 
+        experience: (master as any).experience || "[]",
         activities: (master as any).activities ?? "",
         majorCourses: (master as any).majorCourses ?? "",
         keywords: (master as any).keywords ?? "",
@@ -180,15 +263,15 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
         {currentStep === 1 && (
           <div className="space-y-12 flex-1 text-left">
             <div className="space-y-4 text-center pb-10 border-b border-slate-200">
-              <div className="inline-flex items-center gap-2 bg-indigo-50 px-4 py-1.5 rounded-full text-indigo-600 text-sm font-black uppercase tracking-widest mb-2">
-                <SparklesIcon className="w-4 h-4" />
-                Step 1. 브레인스토밍
+              <div className="inline-flex items-center gap-2 bg-slate-100 px-4 py-1.5 rounded-full text-slate-600 text-sm font-black uppercase tracking-widest mb-2">
+                <CheckCircle2Icon className="w-4 h-4" />
+                Step 1. 경험 및 역량 정리
               </div>
               <Label className="text-4xl md:text-5xl font-black text-slate-900 block tracking-tighter">
-                나만의 <span className="text-indigo-600 italic">필살기</span>를 던져보세요
+                보유하신 <span className="text-indigo-600">직무 역량</span>을 정리해 보세요
               </Label>
-              <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-                떠오르는 <span className="text-slate-900">#키워드</span>와 <span className="text-slate-900">#에피소드</span>만 나열해도 <br /> 건설사 맞춤형 문장의 훌륭한 재료가 됩니다.
+              <p className="text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed font-medium">
+                사소한 경험이라도 유형별로 분류하여 입력해 두시면, <br /> 추후 기업별 맞춤형 자기소개서를 작성할 때 훌륭한 소스가 됩니다.
               </p>
             </div>
 
@@ -223,107 +306,232 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
             )}
 
             <div className="space-y-16 max-w-4xl mx-auto">
-              {/* 학력 및 전공 */}
+              {/* 학력 및 기본 스펙 (컴팩트 레이아웃) */}
               <div className="space-y-8">
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-lg">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-white shadow-lg">
                     <CheckCircle2Icon className="w-6 h-6" />
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">학력 및 기본 스펙</h3>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">학력 및 기본 정보</h3>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-                  <div className="space-y-4">
-                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">전공 및 학점</Label>
-                    <div className="flex gap-3">
-                      <div className="relative flex-1">
-                        <Input 
-                          placeholder="전공 (예: 건축공학)" 
-                          value={form.major}
-                          onChange={(e) => setForm({ ...form, major: e.target.value })}
-                          className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
-                        />
-                      </div>
-                      <div className="relative w-32">
-                        <Input 
-                          placeholder="학점" 
-                          value={form.gpa}
-                          onChange={(e) => setForm({ ...form, gpa: e.target.value })}
-                          className="rounded-2xl h-16 text-center bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all font-mono text-2xl text-slate-900 placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">주요 수강 과목 (전공 심화)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-3">
+                    <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">전공</Label>
                     <Input 
-                      placeholder="예: 구조역학, 건축시공학, 건설관리(CM)" 
-                      value={form.majorCourses}
-                      onChange={(e) => setForm({ ...form, majorCourses: e.target.value })}
-                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
+                      placeholder="예: 건축공학" 
+                      value={form.major}
+                      onChange={(e) => setForm({ ...form, major: e.target.value })}
+                      className="rounded-xl h-14 bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 pl-5 text-lg font-bold text-slate-900"
                     />
-                    <div className="flex flex-wrap gap-2 px-1">
-                      {["#전공심화", "#실무연계", "#수석수료", "#설계A+"].map(t => (
-                        <button key={t} onClick={() => setForm(prev => ({ ...prev, majorCourses: prev.majorCourses ? `${prev.majorCourses}, ${t}` : t }))} className="text-xs text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-4 py-2 rounded-xl border border-indigo-100 transition-all shadow-sm">{t} +</button>
-                      ))}
-                    </div>
                   </div>
-
-                  <div className="md:col-span-2 space-y-4">
-                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">자격증 및 어학</Label>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">학점</Label>
                     <Input 
-                      placeholder="#건축기사 #토익900 #CAD #BIM #컴활1급" 
+                      placeholder="0.0 / 4.5" 
+                      value={form.gpa}
+                      onChange={(e) => setForm({ ...form, gpa: e.target.value })}
+                      className="rounded-xl h-14 bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 text-center text-lg font-mono font-bold text-slate-900"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">주요 자격증 / 어학</Label>
+                    <Input 
+                      placeholder="예: 건축기사, 토익 900" 
                       value={form.certifications}
                       onChange={(e) => setForm({ ...form, certifications: e.target.value })}
-                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
+                      className="rounded-xl h-14 bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 pl-5 text-lg font-bold text-slate-900"
                     />
+                  </div>
+
+                  <div className="md:col-span-3 space-y-4">
+                    <div className="flex flex-col gap-1 px-1">
+                      <Label className="text-sm font-black text-slate-500 uppercase tracking-widest">전공 프로젝트 및 직무 심화 학습</Label>
+                      <p className="text-xs text-slate-400 font-medium">단순 과목 나열보다는 수업 중 수행한 설계 프로젝트나 직무와 직결되는 구체적인 성과를 적어주세요.</p>
+                    </div>
+                    <textarea 
+                      placeholder="예: 건축시공학 기말 프로젝트 - 모듈러 공법의 현장 적용성 분석 및 원가 절감 방안 제시 (A+ 수료)" 
+                      value={form.majorCourses}
+                      onChange={(e) => setForm({ ...form, majorCourses: e.target.value })}
+                      className="w-full min-h-[120px] rounded-2xl bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 p-6 text-lg text-slate-900 placeholder:text-slate-400 leading-relaxed outline-none transition-all"
+                    />
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { tag: "#전공심화프로젝트", desc: "실습중심" },
+                        { tag: "#설계경진대회수상", desc: "성과" },
+                        { tag: "#BIM모델링실무", desc: "툴활용" },
+                        { tag: "#학부연구생활동", desc: "전문성" }
+                      ].map(item => (
+                        <button 
+                          key={item.tag} 
+                          onClick={() => setForm(prev => ({ ...prev, majorCourses: prev.majorCourses ? `${prev.majorCourses}\n- ${item.tag}` : item.tag }))} 
+                          className="group flex items-center gap-2 text-xs text-slate-600 bg-white hover:bg-slate-50 px-4 py-2 rounded-lg border border-slate-200 transition-all shadow-sm"
+                        >
+                          <span className="font-bold text-indigo-500">{item.tag}</span>
+                          <span className="text-[10px] text-slate-400 group-hover:text-slate-500">({item.desc})</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* 경험 및 활동 */}
+              {/* 경력 및 활동 상세 */}
               <div className="space-y-8">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center text-white shadow-lg">
-                    <SparklesIcon className="w-6 h-6" />
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center text-white shadow-lg">
+                      <SparklesIcon className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">경력 및 활동 상세</h3>
                   </div>
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">경험 및 활동 키워드</h3>
+                  <div className="flex gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => addExperience("intern")}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-bold gap-2"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      인턴 추가
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => addExperience("project")}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-bold gap-2"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      프로젝트 추가
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => addExperience("activity")}
+                      className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-50 font-bold gap-2"
+                    >
+                      <PlusIcon className="w-4 h-4" />
+                      기타활동 추가
+                    </Button>
+                  </div>
                 </div>
                 
-                <div className="space-y-10">
-                  <div className="space-y-4">
-                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">인턴 / 프로젝트 / 대외활동</Label>
-                    <textarea 
-                      placeholder="#삼성건설인턴 #BIM프로젝트 #현장실습 #해외봉사" 
-                      value={form.experience}
-                      onChange={(e) => setForm({ ...form, experience: e.target.value })}
-                      className="w-full min-h-[220px] rounded-[2rem] bg-slate-100 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition-all p-8 text-xl text-slate-900 placeholder:text-slate-400 resize-none outline-none leading-relaxed"
-                    />
-                    <div className="flex flex-wrap gap-3">
-                      {[
-                        "3개월간 현장 실습하며 도면 검토 역량을 키웠습니다.",
-                        "BIM 프로젝트를 통해 설계 효율을 15% 개선했습니다.",
-                        "현장 안전 관리 보조를 수행하며 0건의 사고를 기록했습니다."
-                      ].map((s, i) => (
-                        <button key={i} onClick={() => setForm(prev => ({ ...prev, experience: prev.experience ? `${prev.experience}\n- ${s}` : s }))} className="text-xs text-left text-emerald-800 bg-emerald-50 hover:bg-emerald-100 p-4 rounded-2xl border border-emerald-200 transition-all shadow-sm">"{s}" +</button>
-                      ))}
+                <div className="space-y-6">
+                  {experiences.length === 0 ? (
+                    <div className="p-12 border-2 border-dashed border-slate-200 rounded-[3rem] bg-slate-50/50 text-left flex flex-col md:flex-row items-center gap-10 group hover:border-indigo-200 transition-colors">
+                      <div className="w-24 h-24 rounded-[2rem] bg-white shadow-xl flex items-center justify-center shrink-0 border border-slate-100 group-hover:scale-110 transition-transform">
+                        <SparklesIcon className="w-10 h-10 text-indigo-500" />
+                      </div>
+                      <div className="space-y-3">
+                        <p className="text-xl font-black text-slate-900 tracking-tight">"아직 특별한 경험이 없어도 괜찮아요!"</p>
+                        <p className="text-slate-600 leading-relaxed font-medium">
+                          대단한 인턴이 아니어도 좋습니다. <span className="text-indigo-600">전공 수업의 팀 프로젝트, 1년 넘게 꾸준히 한 아르바이트, 군 생활 중의 책임감</span> 등 우리 일상의 모든 '성실함'이 건설 현장에서는 강력한 무기가 됩니다. <br />
+                          위의 버튼을 눌러 본인의 성실했던 순간 하나를 가볍게 적어보세요.
+                        </p>
+                        <div className="flex gap-2 pt-2">
+                          {["#전공과제", "#아르바이트", "#책임감", "#끈기"].map(t => (
+                            <Badge key={t} variant="outline" className="bg-white text-slate-400 border-slate-200 px-3 py-1">{t}</Badge>
+                          ))}
+                        </div>
+                      </div>
                     </div>
+                  ) : (
+                    experiences.map((exp) => (
+                      <div key={exp.id} className="group relative p-8 rounded-[2rem] bg-slate-50 border border-slate-200 hover:border-emerald-300 transition-all hover:shadow-lg">
+                        <button 
+                          onClick={() => removeExperience(exp.id)}
+                          className="absolute top-6 right-6 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                          title="삭제"
+                        >
+                          <Trash2Icon className="w-5 h-5" />
+                        </button>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+                          <div className="md:col-span-4 space-y-4">
+                            <Badge className={`px-4 py-1.5 rounded-lg font-black uppercase tracking-wider ${
+                              exp.type === 'intern' ? 'bg-emerald-100 text-emerald-700' :
+                              exp.type === 'project' ? 'bg-blue-100 text-blue-700' :
+                              'bg-orange-100 text-orange-700'
+                            }`}>
+                              {EXPERIENCE_GUIDES[exp.type].title}
+                            </Badge>
+                            <Input 
+                              placeholder="경험 제목 (예: OO건설 현장 인턴)" 
+                              value={exp.title}
+                              onChange={(e) => updateExperience(exp.id, { title: e.target.value })}
+                              className="bg-transparent border-none text-2xl font-black p-0 h-auto focus:ring-0 placeholder:text-slate-300"
+                            />
+                            <Input 
+                              placeholder="기간 (예: 2025.01 - 2025.03)" 
+                              value={exp.period}
+                              onChange={(e) => updateExperience(exp.id, { period: e.target.value })}
+                              className="bg-transparent border-none text-sm font-bold text-slate-500 p-0 h-auto focus:ring-0 placeholder:text-slate-300"
+                            />
+                          </div>
+
+                          <div className="md:col-span-8 space-y-6 border-l border-slate-200 pl-8">
+                            <div className="space-y-3">
+                              <Label className="text-xs font-black text-slate-400 uppercase tracking-widest">심화 질문 가이드</Label>
+                              <div className="bg-white/50 rounded-xl p-4 border border-slate-100">
+                                <ul className="space-y-2">
+                                  {EXPERIENCE_GUIDES[exp.type].questions.map((q, i) => (
+                                    <li key={i} className="text-sm text-slate-600 flex gap-2">
+                                      <span className="text-emerald-500 font-bold">Q.</span> {q}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4">
+                              <textarea 
+                                placeholder="어떤 역할을 수행했고, 구체적으로 무엇을 했나요? (Action)" 
+                                value={exp.keyAction}
+                                onChange={(e) => updateExperience(exp.id, { keyAction: e.target.value })}
+                                className="w-full min-h-[100px] bg-white border border-slate-200 rounded-xl p-4 text-base focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-300 outline-none transition-all"
+                              />
+                              <textarea 
+                                placeholder="그 결과는 어떠했나요? 무엇을 배웠나요? (Result & Learned)" 
+                                value={exp.result}
+                                onChange={(e) => updateExperience(exp.id, { result: e.target.value })}
+                                className="w-full min-h-[80px] bg-white border border-slate-200 rounded-xl p-4 text-base focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-300 outline-none transition-all"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-1 px-1">
+                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest">직무 가치관 및 태도 (Professional Mindset)</Label>
+                    <p className="text-xs text-slate-400 font-medium">건설 현장에서 중요하게 생각하는 본인만의 직업 윤리나 태도를 키워드로 적어주세요.</p>
                   </div>
-                  
-                  <div className="space-y-4">
-                    <Label className="text-sm font-black text-slate-500 uppercase tracking-widest px-1">강점 및 가치관 (Soft Skills)</Label>
-                    <Input 
-                      placeholder="#협업전문가 #공기단축 #안전제일 #해결사" 
-                      value={form.activities}
-                      onChange={(e) => setForm({ ...form, activities: e.target.value })}
-                      className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-emerald-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
-                    />
-                    <div className="flex flex-wrap gap-3 pt-1">
-                      {["#철저한안전", "#원활한소통", "#끝까지완수", "#데이터기반", "#정직한현장"].map(t => (
-                        <button key={t} onClick={() => setForm(prev => ({ ...prev, activities: prev.activities ? `${prev.activities}, ${t}` : t }))} className="text-xs text-slate-700 bg-slate-200 hover:bg-slate-300 px-5 py-2.5 rounded-xl border border-slate-300 transition-all shadow-sm">{t} +</button>
-                      ))}
-                    </div>
+                  <Input 
+                    placeholder="예: #안전제일 #공기엄수 #원가관리마인드 #현장중심 #정직한시공" 
+                    value={form.activities}
+                    onChange={(e) => setForm({ ...form, activities: e.target.value })}
+                    className="rounded-2xl h-16 bg-slate-100 border-2 border-transparent focus:border-indigo-500 focus:bg-white transition-all pl-6 text-xl text-slate-900 placeholder:text-slate-400"
+                  />
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {[
+                      { tag: "#안전절대원칙", desc: "안전" },
+                      { tag: "#공기단축/준수", desc: "책임" },
+                      { tag: "#공종간협업", desc: "소통" },
+                      { tag: "#철저한품질관리", desc: "신뢰" },
+                      { tag: "#원가절감마인드", desc: "효율" }
+                    ].map(item => (
+                      <button 
+                        key={item.tag} 
+                        onClick={() => setForm(prev => ({ ...prev, activities: prev.activities ? `${prev.activities}, ${item.tag}` : item.tag }))} 
+                        className="group flex items-center gap-2 text-xs text-slate-600 bg-white hover:bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200 transition-all shadow-sm"
+                      >
+                        <span className="font-black text-indigo-500">{item.tag}</span>
+                        <span className="text-[10px] text-slate-400 group-hover:text-slate-500">({item.desc})</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -481,37 +689,99 @@ Result (결과): 그 결과 어떤 성과를 냈나요? (수치나 구체적 변
         )}
 
         {currentStep === 4 && (
-          <div className="space-y-8 flex-1">
-            <div className="space-y-4 flex flex-col md:flex-row md:justify-between md:items-center gap-6">
-              <div>
-                <Label className="text-3xl font-black text-slate-900 tracking-tight">Step 4. 최종 자기소개서 완성</Label>
-                <p className="text-lg text-slate-500 mt-1">재료들이 모두 준비되었습니다. 내용을 멋지게 구성해 보세요.</p>
-              </div>
-              <div className="flex items-center gap-4">
-                <Button 
-                  variant="outline" 
-                  size="lg" 
-                  className="gap-3 border-primary/30 text-primary hover:bg-primary/5 h-14 px-8 rounded-2xl font-black text-base shadow-sm"
-                  onClick={() => generateMutation.mutate(form)}
-                  disabled={generateMutation.isPending}
-                >
-                  <SparklesIcon className={`w-5 h-5 ${generateMutation.isPending ? 'animate-pulse' : ''}`} />
-                  {generateMutation.isPending ? "AI 분석 및 작성 중..." : "AI 초안 생성"}
-                </Button>
+          <div className="flex flex-col lg:flex-row gap-10 flex-1 h-full min-h-[600px]">
+            {/* Main Editor */}
+            <div className="flex-1 space-y-6">
+              <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6">
+                <div>
+                  <Label className="text-3xl font-black text-slate-900 tracking-tight">Step 4. 최종 자기소개서 완성</Label>
+                  <p className="text-lg text-slate-500 mt-1">준비된 재료들을 연결하여 나만의 문장을 완성하세요.</p>
+                </div>
+
                 <div className="bg-slate-100 px-4 py-2 rounded-xl border border-slate-200">
                   <p className="text-sm text-slate-600 font-mono">
                     {form.content.length} 자
                   </p>
                 </div>
               </div>
+              <textarea
+                id="content"
+                className="w-full h-full min-h-[550px] px-10 py-10 text-xl bg-slate-50 border-none rounded-[3rem] focus:ring-2 focus:ring-primary/20 outline-none transition-all leading-relaxed shadow-inner text-slate-900"
+                placeholder="여기에 내용을 작성하세요..."
+                value={form.content}
+                onChange={(e) => setForm({ ...form, content: e.target.value })}
+              />
             </div>
-            <textarea
-              id="content"
-              className="w-full min-h-[550px] px-10 py-10 text-xl bg-slate-50 border-none rounded-[3rem] focus:ring-2 focus:ring-primary/20 outline-none transition-all leading-relaxed shadow-inner text-slate-900"
-              placeholder="여기에 내용을 작성하세요..."
-              value={form.content}
-              onChange={(e) => setForm({ ...form, content: e.target.value })}
-            />
+
+            {/* Remind Sidebar */}
+            <div className="w-full lg:w-96 space-y-6 text-left">
+              <div className="sticky top-8 space-y-6">
+                <div className="p-6 bg-slate-900 rounded-[2rem] text-white shadow-xl">
+                  <h4 className="flex items-center gap-2 text-slate-400 font-black mb-4 uppercase tracking-widest text-[10px]">
+                    <CheckCircle2Icon className="w-3.5 h-3.5" />
+                    Target Info
+                  </h4>
+                  <div className="space-y-4">
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">지원 기업</p>
+                      <p className="text-xl font-black tracking-tight">{form.company || "미지정"}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">지원 직무</p>
+                      <p className="text-lg font-bold text-slate-200 tracking-tight">{form.position || "미지정"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-8 bg-white border border-slate-200 rounded-[2.5rem] shadow-sm space-y-8 max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <h4 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                    <SparklesIcon className="w-5 h-5 text-indigo-500" />
+                    입력된 경험 소스
+                  </h4>
+                  
+                  {/* Keywords */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">핵심 키워드</p>
+                    <div className="flex flex-wrap gap-2">
+                      {form.keywords.split(',').filter(k => k.trim()).map((k, i) => (
+                        <Badge key={i} className="bg-slate-100 text-slate-700 border-none px-3 py-1 rounded-lg">
+                          {k.trim()}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Experiences */}
+                  <div className="space-y-4">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">등록된 경험 ({experiences.length})</p>
+                    <div className="space-y-4">
+                      {experiences.map((exp) => (
+                        <div key={exp.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+                          <p className="text-sm font-black text-slate-900 leading-tight">{exp.title}</p>
+                          <p className="text-xs text-slate-500 font-medium line-clamp-2">{exp.keyAction}</p>
+                          <p className="text-[10px] text-emerald-600 font-bold">{EXPERIENCE_GUIDES[exp.type].title}</p>
+                        </div>
+                      ))}
+                      {experiences.length === 0 && (
+                        <p className="text-sm text-slate-400 italic">등록된 경험이 없습니다.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Major Courses */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">주요 수강 과목</p>
+                    <p className="text-sm text-slate-600 leading-relaxed font-medium">{form.majorCourses || "정보 없음"}</p>
+                  </div>
+                </div>
+
+                <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-[2rem]">
+                  <p className="text-sm text-indigo-900 font-bold leading-relaxed">
+                    💡 작성 팁: 오른쪽의 경험 카드에서 하나를 골라 <span className="text-indigo-600">성취 과정</span>을 중심으로 풀어내 보세요.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
