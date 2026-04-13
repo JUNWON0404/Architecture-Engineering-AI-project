@@ -13,6 +13,8 @@ import {
   coverLetters,
   interviewQuestions,
   jobPostings,
+  newsScraps,
+  companyNotes,
   resumes,
   schedules,
   users,
@@ -65,6 +67,8 @@ function getMockStore() {
     bookmarks: [],
     checklist: [],
     users: [],
+    newsScraps: [],
+    companyNotes: [],
   };
   if (!fs.existsSync(MOCK_DB_PATH)) return initialStore;
   try {
@@ -164,7 +168,15 @@ export async function createUserWithEmail(email: string, password: string, name?
       return user[0];
     },
     (store) => {
-      const newUser = { ...userData, id: Math.floor(Math.random() * 10000) };
+      const newUser = { 
+        ...userData, 
+        id: Math.floor(Math.random() * 10000),
+        openId: null,
+        role: "user",
+        bio: null,
+        targetJob: null,
+        targetCompany: null,
+      };
       store.users.push(newUser);
       saveMockStore(store);
       return newUser;
@@ -493,7 +505,7 @@ export async function deleteInterviewQuestion(id: number, userId: number) {
 export async function getSchedules(userId: number) {
   return runQuery(
     async (db) => db.select().from(schedules).where(eq(schedules.userId, userId)).orderBy(desc(schedules.scheduledAt)),
-    (store) => store.schedules.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: !!i.isCompleted })).sort((a: any, b: any) => a.scheduledAt - b.scheduledAt)
+    (store) => store.schedules.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: Number(i.isCompleted) })).sort((a: any, b: any) => a.scheduledAt - b.scheduledAt)
   );
 }
 
@@ -506,10 +518,21 @@ export async function createSchedule(data: typeof schedules.$inferInsert) {
       return result[0];
     },
     (store) => {
-      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-      store.schedules.push({ ...newItem, isCompleted: !!newItem.isCompleted });
+      const newItem = { 
+        id: Math.floor(Math.random() * 10000),
+        userId: data.userId,
+        title: data.title,
+        company: data.company ?? null,
+        type: data.type || "other",
+        scheduledAt: data.scheduledAt,
+        description: data.description ?? null,
+        isCompleted: data.isCompleted ?? 0,
+        createdAt: now, 
+        updatedAt: now 
+      };
+      store.schedules.push(newItem);
       saveMockStore(store);
-      return { ...newItem, isCompleted: !!newItem.isCompleted };
+      return newItem;
     }
   );
 }
@@ -525,9 +548,8 @@ export async function updateSchedule(id: number, userId: number, data: Partial<t
       const index = store.schedules.findIndex((i: any) => i.id === id && i.userId === userId);
       if (index !== -1) {
         store.schedules[index] = { ...store.schedules[index], ...data, updatedAt: Date.now() };
-        if (data.isCompleted !== undefined) store.schedules[index].isCompleted = !!data.isCompleted;
         saveMockStore(store);
-        return { ...store.schedules[index], isCompleted: !!store.schedules[index].isCompleted };
+        return store.schedules[index];
       }
     }
   );
@@ -610,7 +632,7 @@ export async function deleteCompanyBookmark(id: number, userId: number) {
 export async function getChecklistItems(userId: number) {
   return runQuery(
     async (db) => db.select().from(checklistItems).where(eq(checklistItems.userId, userId)).orderBy(checklistItems.order),
-    (store) => store.checklist.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: !!i.isCompleted })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+    (store) => store.checklist.filter((i: any) => i.userId === userId).map((i: any) => ({ ...i, isCompleted: Number(i.isCompleted) })).sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
   );
 }
 
@@ -623,10 +645,20 @@ export async function createChecklistItem(data: typeof checklistItems.$inferInse
       return result[0];
     },
     (store) => {
-      const newItem = { ...data, id: Math.floor(Math.random() * 10000), createdAt: now, updatedAt: now };
-      store.checklist.push({ ...newItem, isCompleted: !!newItem.isCompleted });
+      const newItem = { 
+        id: Math.floor(Math.random() * 10000),
+        userId: data.userId,
+        title: data.title,
+        description: data.description ?? null,
+        category: data.category ?? null,
+        isCompleted: data.isCompleted ?? 0,
+        order: data.order ?? 0,
+        createdAt: now, 
+        updatedAt: now 
+      };
+      store.checklist.push(newItem);
       saveMockStore(store);
-      return { ...newItem, isCompleted: !!newItem.isCompleted };
+      return newItem;
     }
   );
 }
@@ -642,9 +674,8 @@ export async function updateChecklistItem(id: number, userId: number, data: Part
       const index = store.checklist.findIndex((i: any) => i.id === id && i.userId === userId);
       if (index !== -1) {
         store.checklist[index] = { ...store.checklist[index], ...data, updatedAt: Date.now() };
-        if (data.isCompleted !== undefined) store.checklist[index].isCompleted = !!data.isCompleted;
         saveMockStore(store);
-        return { ...store.checklist[index], isCompleted: !!store.checklist[index].isCompleted };
+        return store.checklist[index];
       }
     }
   );
@@ -678,7 +709,9 @@ export async function getAllCompanies(options?: { location?: string; sortBy?: "r
           brand: companies.brand,
           hiringSeason: companies.hiringSeason,
           salaryGuide: companies.salaryGuide,
-          // description 제거 (목록에서는 불필요)
+          keywords: companies.keywords,
+          description: companies.description,
+          revenue: companies.revenue,
           location: companies.location,
           employees: companies.employees,
           established: companies.established,
@@ -712,12 +745,12 @@ export async function getAllCompanies(options?: { location?: string; sortBy?: "r
       return await query;
     },
     () => {
-      // Mock Fallback: DB 연결 실패 시 보여줄 최소한의 데이터
+      // Mock Fallback
       const now = Date.now();
       return [
-        { id: 1, name: "현대건설", sector: "건설/토목", rank: 1, brand: "힐스테이트", hiringSeason: "상반기/하반기", salaryGuide: "5,000만원대", location: "서울특별시 종로구", description: "국내 건설 산업을 선도하는 글로벌 건설사", employees: "약 6,000명", established: 1947, website: "https://www.hdec.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1 },
-        { id: 2, name: "삼성물산", sector: "건설/건축", rank: 2, brand: "래미안", hiringSeason: "상시", salaryGuide: "5,500만원대", location: "서울특별시 강동구", description: "차별화된 기술력과 품질을 자랑하는 글로벌 건설사", employees: "약 5,000명", established: 1938, website: "https://www.secc.co.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1 },
-        { id: 3, name: "대우건설", sector: "건설/토목", rank: 3, brand: "푸르지오", hiringSeason: "상반기", salaryGuide: "4,800만원대", location: "서울특별시 중구", description: "인류와 자연이 함께하는 건강한 미래를 만드는 대우건설", employees: "약 5,500명", established: 1973, website: "https://www.daewooenc.com", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 0 },
+        { id: 1, name: "현대건설", sector: "건설/토목", rank: 1, brand: "힐스테이트", hiringSeason: "상반기/하반기", salaryGuide: "5,000만원대", location: "서울특별시 종로구", description: "국내 건설 산업을 선도하는 글로벌 건설사", employees: "약 6,000명", established: 1947, website: "https://www.hdec.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1, keywords: null, revenue: null },
+        { id: 2, name: "삼성물산", sector: "건설/건축", rank: 2, brand: "래미안", hiringSeason: "상시", salaryGuide: "5,500만원대", location: "서울특별시 강동구", description: "차별화된 기술력과 품질을 자랑하는 글로벌 건설사", employees: "약 5,000명", established: 1938, website: "https://www.secc.co.kr", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 1, keywords: null, revenue: null },
+        { id: 3, name: "대우건설", sector: "건설/토목", rank: 3, brand: "푸르지오", hiringSeason: "상반기", salaryGuide: "4,800만원대", location: "서울특별시 중구", description: "인류와 자연이 함께하는 건강한 미래를 만드는 대우건설", employees: "약 5,500명", established: 1973, website: "https://www.daewooenc.com", thumbnail: null, createdAt: now, updatedAt: now, jobPostingsCount: 0, keywords: null, revenue: null },
       ];
     }
   );
@@ -773,42 +806,125 @@ export async function updateUserProfile(userId: number, data: any) {
   );
 }
 
+// ── News Scraps ──────────────────────────────────────────────
+export async function insertNewsScrap(userId: number, data: { title: string; link: string; source: string; pubDate: string; companyId?: number | null }) {
+  const now = Date.now();
+  const scrapData = {
+    userId,
+    title: data.title,
+    link: data.link,
+    source: data.source,
+    pubDate: data.pubDate,
+    companyId: data.companyId ?? null,
+    createdAt: now,
+  };
+
+  return runQuery(
+    async (db) => {
+      const result = await db.insert(newsScraps).values(scrapData).returning();
+      return result[0];
+    },
+    (store) => {
+      if (!store.newsScraps) store.newsScraps = [];
+      const newItem = { id: Math.floor(Math.random() * 10000), ...scrapData };
+      store.newsScraps.push(newItem);
+      saveMockStore(store);
+      return newItem;
+    }
+  );
+}
+
+export async function getNewsScraps(userId: number, companyId?: number | null) {
+  return runQuery(
+    async (db) => {
+      let q = db.select().from(newsScraps).where(eq(newsScraps.userId, userId));
+      if (companyId !== undefined) {
+        q = q.where(companyId === null ? sql`${newsScraps.companyId} IS NULL` : eq(newsScraps.companyId, companyId)) as any;
+      }
+      return q.orderBy(desc(newsScraps.createdAt));
+    },
+    (store) => {
+      let filtered = (store.newsScraps || []).filter((s: any) => s.userId === userId);
+      if (companyId !== undefined) {
+        filtered = filtered.filter((s: any) => s.companyId === (companyId || undefined));
+      }
+      return filtered.sort((a: any, b: any) => b.createdAt - a.createdAt);
+    }
+  );
+}
+
+export async function deleteNewsScrap(id: number, userId: number) {
+  return runQuery(
+    async (db) => {
+      await db.delete(newsScraps).where(and(eq(newsScraps.id, id), eq(newsScraps.userId, userId)));
+    },
+    (store) => {
+      store.newsScraps = (store.newsScraps || []).filter((s: any) => !(s.id === id && s.userId === userId));
+      saveMockStore(store);
+    }
+  );
+}
+
+// ── Company Notes ──────────────────────────────────────────────
+export async function getCompanyNote(userId: number, companyId: number) {
+  return runQuery(
+    async (db) => {
+      const result = await db.select().from(companyNotes).where(and(eq(companyNotes.userId, userId), eq(companyNotes.companyId, companyId))).limit(1);
+      return result[0] || null;
+    },
+    (store) => (store.companyNotes || []).find((n: any) => n.userId === userId && n.companyId === companyId) || null
+  );
+}
+
+export async function upsertCompanyNote(userId: number, companyId: number, content: string) {
+  const now = Date.now();
+  return runQuery(
+    async (db) => {
+      const existing = await db.select().from(companyNotes).where(and(eq(companyNotes.userId, userId), eq(companyNotes.companyId, companyId))).limit(1);
+      if (existing.length > 0) {
+        const [updated] = await db.update(companyNotes).set({ content, updatedAt: now }).where(eq(companyNotes.id, existing[0].id)).returning();
+        return updated;
+      } else {
+        const [inserted] = await db.insert(companyNotes).values({ userId, companyId, content, updatedAt: now }).returning();
+        return inserted;
+      }
+    },
+    (store) => {
+      if (!store.companyNotes) store.companyNotes = [];
+      const index = store.companyNotes.findIndex((n: any) => n.userId === userId && n.companyId === companyId);
+      if (index !== -1) {
+        store.companyNotes[index] = { ...store.companyNotes[index], content, updatedAt: now };
+        saveMockStore(store);
+        return store.companyNotes[index];
+      } else {
+        const newItem = { id: Math.floor(Math.random() * 10000), userId, companyId, content, updatedAt: now };
+        store.companyNotes.push(newItem);
+        saveMockStore(store);
+        return newItem;
+      }
+    }
+  );
+}
+
 // ── Dashboard Summary ──────────────────────────────────────────
 export async function getDashboardSummary(userId: number) {
   return runQuery(
     async (db) => {
       const now = Date.now();
-      
-      // 병렬 쿼리 실행
-      const [
-        cvCount,
-        resumeCount,
-        bookmarkCount,
-        upcomingSchedules,
-        checklistData
-      ] = await Promise.all([
+      const [cvCount, resumeCount, bookmarkCount, upcomingSchedules, checklistData] = await Promise.all([
         db.select({ count: sql<number>`count(*)` }).from(coverLetters).where(eq(coverLetters.userId, userId)),
         db.select({ count: sql<number>`count(*)` }).from(resumes).where(eq(resumes.userId, userId)),
         db.select({ count: sql<number>`count(*)` }).from(companyBookmarks).where(eq(companyBookmarks.userId, userId)),
         db.select().from(schedules).where(and(eq(schedules.userId, userId), sql`${schedules.scheduledAt} > ${now}`, eq(schedules.isCompleted, 0))).orderBy(asc(schedules.scheduledAt)).limit(3),
         db.select().from(checklistItems).where(eq(checklistItems.userId, userId))
       ]);
-
-      const totalChecklist = checklistData.length;
-      const completedChecklist = checklistData.filter(i => i.isCompleted).length;
-      const progress = totalChecklist > 0 ? Math.round((completedChecklist / totalChecklist) * 100) : 0;
-
+      const total = checklistData.length;
+      const completed = checklistData.filter(i => i.isCompleted).length;
       return {
-        counts: {
-          coverLetters: Number(cvCount[0].count),
-          resumes: Number(resumeCount[0].count),
-          bookmarks: Number(bookmarkCount[0].count),
-        },
+        counts: { coverLetters: Number(cvCount[0].count), resumes: Number(resumeCount[0].count), bookmarks: Number(bookmarkCount[0].count) },
+        lastUpdatedMaster: checklistData.length > 0 ? Math.max(...checklistData.map(i => i.updatedAt)) : Date.now(),
         upcomingSchedules,
-        checklist: {
-          progress,
-          items: checklistData.filter(i => !i.isCompleted).slice(0, 3)
-        }
+        checklist: { progress: total > 0 ? Math.round((completed / total) * 100) : 0, items: checklistData.filter(i => !i.isCompleted).slice(0, 3) }
       };
     },
     (store) => {
@@ -818,21 +934,12 @@ export async function getDashboardSummary(userId: number) {
       const userBookmarks = store.bookmarks.filter((i: any) => i.userId === userId);
       const userSchedules = store.schedules.filter((i: any) => i.userId === userId && i.scheduledAt > now && !i.isCompleted);
       const userChecklist = store.checklist.filter((i: any) => i.userId === userId);
-      
       const completed = userChecklist.filter((i: any) => i.isCompleted).length;
-      const progress = userChecklist.length > 0 ? Math.round((completed / userChecklist.length) * 100) : 0;
-
       return {
-        counts: {
-          coverLetters: userCVs.length,
-          resumes: userResumes.length,
-          bookmarks: userBookmarks.length,
-        },
+        counts: { coverLetters: userCVs.length, resumes: userResumes.length, bookmarks: userBookmarks.length },
+        lastUpdatedMaster: userCVs.length > 0 ? Math.max(...userCVs.map((i: any) => i.updatedAt)) : Date.now(),
         upcomingSchedules: userSchedules.slice(0, 3),
-        checklist: {
-          progress,
-          items: userChecklist.filter((i: any) => !i.isCompleted).slice(0, 3)
-        }
+        checklist: { progress: userChecklist.length > 0 ? Math.round((completed / userChecklist.length) * 100) : 0, items: userChecklist.filter((i: any) => !i.isCompleted).slice(0, 3) }
       };
     }
   );

@@ -12,6 +12,7 @@ import {
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
+import type { CoverLetter } from "@shared/types";
 
 const statusLabel: Record<string, string> = {
   draft: "작성 중",
@@ -35,7 +36,7 @@ export default function CoverLetters() {
       setDeletingId(id);
       await utils.coverLetter.list.cancel();
       const prev = utils.coverLetter.list.getData();
-      utils.coverLetter.list.setData(undefined, (old: any) => old?.filter((c: any) => c.id !== id));
+      utils.coverLetter.list.setData(undefined, (old: CoverLetter[] | undefined) => old?.filter((c: CoverLetter) => c.id !== id));
       return { prev };
     },
     onError: (_err, _vars, context) => {
@@ -64,7 +65,7 @@ export default function CoverLetters() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3].map((i) => (
+          {[1, 2, 3].map((i: number) => (
             <div key={i} className="h-40 bg-muted animate-pulse rounded-2xl" />
           ))}
         </div>
@@ -82,14 +83,14 @@ export default function CoverLetters() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {coverLetters.map((cl) => (
+          {coverLetters.map((cl: CoverLetter) => (
             <div
               key={cl.id}
               className="bg-card border border-border rounded-2xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group"
             >
               <div className="flex items-start justify-between mb-3">
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${statusColor[cl.status]}`}>
-                  {statusLabel[cl.status]}
+                <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${statusColor[cl.status] || statusColor.draft}`}>
+                  {statusLabel[cl.status] || statusLabel.draft}
                 </span>
                 <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
@@ -107,32 +108,32 @@ export default function CoverLetters() {
                   </button>
                 </div>
               </div>
-              <h3
-                className="text-base font-semibold text-foreground mb-2 cursor-pointer hover:text-primary transition-colors line-clamp-2"
-                onClick={() => navigate(`/cover-letters/${cl.id}`)}
-              >
+              <h3 className="text-lg font-bold text-slate-900 group-hover:text-primary transition-colors">
                 {cl.title}
               </h3>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {cl.company && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <BuildingIcon className="w-3 h-3" />
-                    {cl.company}
-                  </span>
-                )}
-                {cl.position && (
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <BriefcaseIcon className="w-3 h-3" />
-                    {cl.position}
-                  </span>
-                )}
+              <div className="flex flex-col gap-2 mt-4 text-sm text-slate-600">
+                <div className="flex items-center gap-2">
+                  <BuildingIcon className="w-4 h-4 text-slate-400" />
+                  <span className="font-medium text-slate-700">{cl.company || "미지정"}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <BriefcaseIcon className="w-4 h-4 text-slate-400" />
+                  <span className="text-slate-500">{cl.position || "미지정"}</span>
+                </div>
               </div>
-              {cl.content && (
-                <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">{cl.content}</p>
-              )}
-              <p className="text-xs text-muted-foreground/60 mt-3">
-                {new Date(cl.updatedAt).toLocaleDateString("ko-KR")} 수정
-              </p>
+              <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-400">
+                  {new Date(cl.updatedAt).toLocaleDateString("ko-KR")} 수정
+                </span>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="font-bold text-xs"
+                  onClick={() => navigate(`/cover-letters/${cl.id}`)}
+                >
+                  편집하기
+                </Button>
+              </div>
             </div>
           ))}
         </div>

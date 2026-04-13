@@ -1,0 +1,25 @@
+                                    <div className="flex items-center gap-2">
+                                      <Badge className="bg-blue-50 text-blue-600 text-[8px] font-black border-none px-2 py-0.5">기업뉴스</Badge>
+                                      <span className="text-[9px] text-slate-400 font-bold">{item.pubDate}</span>
+                                    </div>
+                                    <h5 className="font-bold text-sm text-slate-900 group-hover/item:text-blue-600 transition-colors line-clamp-2 leading-snug">
+                                      {item.title}
+                                    </h5>
+                                  </div>
+                                </a>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      </section>
+                    </div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

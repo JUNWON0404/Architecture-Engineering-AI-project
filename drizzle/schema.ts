@@ -144,6 +144,7 @@ export const companies = pgTable("companies", {
   location: text("location"), // 본사 위치
   website: text("website"),
   description: text("description"), // 회사 소개
+  keywords: text("keywords"), // 기업 핵심 키워드 (인재상 등)
   thumbnail: text("thumbnail"), // 로고 이미지 URL
   createdAt: bigint("createdAt", { mode: "number" }).notNull(),
   updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
@@ -170,3 +171,28 @@ export const jobPostings = pgTable("job_postings", {
 
 export type JobPosting = typeof jobPostings.$inferSelect;
 export type InsertJobPosting = typeof jobPostings.$inferInsert;
+
+export const newsScraps = pgTable("news_scraps", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  companyId: integer("companyId"), // null이면 대시보드 핫뉴스 스크랩
+  title: text("title").notNull(),
+  link: text("link").notNull(),
+  source: text("source"),
+  pubDate: text("pubDate"),
+  createdAt: bigint("createdAt", { mode: "number" }).notNull(),
+});
+
+export type NewsScrap = typeof newsScraps.$inferSelect;
+export type InsertNewsScrap = typeof newsScraps.$inferInsert;
+
+export const companyNotes = pgTable("company_notes", {
+  id: serial("id").primaryKey(),
+  userId: integer("userId").notNull(),
+  companyId: integer("companyId").notNull(),
+  content: text("content").notNull(),
+  updatedAt: bigint("updatedAt", { mode: "number" }).notNull(),
+});
+
+export type CompanyNote = typeof companyNotes.$inferSelect;
+export type InsertCompanyNote = typeof companyNotes.$inferInsert;

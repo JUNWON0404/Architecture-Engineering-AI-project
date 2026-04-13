@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { CheckSquareIcon, PlusIcon, Trash2Icon, GripVerticalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useState, useMemo } from "react";
+import type { ChecklistItem } from "@shared/types";
 
 const categories = ["기본 준비", "서류 작성", "면접 준비", "최종 확인", "기타"];
 
@@ -31,10 +32,10 @@ export default function Checklist() {
   const [filterCategory, setFilterCategory] = useState("all");
 
   const filtered = useMemo(() => {
-    return items.filter((item: any) => filterCategory === "all" || item.category === filterCategory);
+    return items.filter((item: ChecklistItem) => filterCategory === "all" || item.category === filterCategory);
   }, [items, filterCategory]);
 
-  const completedCount = items.filter((i) => i.isCompleted).length;
+  const completedCount = items.filter((i: ChecklistItem) => i.isCompleted).length;
   const progress = items.length === 0 ? 0 : Math.round((completedCount / items.length) * 100);
 
   const createMutation = trpc.checklist.create.useMutation({
@@ -56,7 +57,7 @@ export default function Checklist() {
     onMutate: async ({ id }) => {
       await utils.checklist.list.cancel();
       const prev = utils.checklist.list.getData();
-      utils.checklist.list.setData(undefined, (old) => old?.filter((i) => i.id !== id));
+      utils.checklist.list.setData(undefined, (old: ChecklistItem[] | undefined) => old?.filter((i: ChecklistItem) => i.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
@@ -126,8 +127,8 @@ export default function Checklist() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">전체 ({items.length})</SelectItem>
-            {categories.map((c) => {
-              const count = items.filter((i) => i.category === c).length;
+            {categories.map((c: string) => {
+              const count = items.filter((i: ChecklistItem) => i.category === c).length;
               return <SelectItem key={c} value={c}>{c} ({count})</SelectItem>;
             })}
           </SelectContent>
@@ -136,7 +137,7 @@ export default function Checklist() {
 
       {isLoading ? (
         <div className="space-y-2">
-          {[1, 2, 3].map((i) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
+          {[1, 2, 3].map((i: number) => <div key={i} className="h-16 bg-muted animate-pulse rounded-lg" />)}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -158,7 +159,7 @@ export default function Checklist() {
         </div>
       ) : (
         <div className="space-y-2">
-          {filtered.map((item) => (
+          {filtered.map((item: ChecklistItem) => (
             <div
               key={item.id}
               className="flex items-start gap-3 p-4 bg-card border border-border rounded-xl hover:shadow-sm hover:border-primary/30 transition-all group"
@@ -228,7 +229,7 @@ export default function Checklist() {
                 <SelectTrigger><SelectValue placeholder="선택" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">없음</SelectItem>
-                  {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {categories.map((c: string) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

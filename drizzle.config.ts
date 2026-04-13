@@ -1,14 +1,15 @@
 import { defineConfig } from "drizzle-kit";
+import "dotenv/config";
 
-// SQLite는 파일 기반이므로 경로만 필요
-// 예: file:./db.sqlite 또는 :memory:
-const dbPath = process.env.DATABASE_URL || "file:./db.sqlite";
+if (!process.env.DATABASE_URL) {
+  throw new Error("DATABASE_URL is not set in .env file");
+}
 
 export default defineConfig({
   schema: "./drizzle/schema.ts",
   out: "./drizzle/migrations",
-  dialect: "sqlite",
+  dialect: "postgresql",
   dbCredentials: {
-    url: dbPath,
+    url: process.env.DATABASE_URL,
   },
 });

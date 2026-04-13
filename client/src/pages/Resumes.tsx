@@ -4,6 +4,7 @@ import { BriefcaseIcon, PlusIcon, Trash2Icon, EditIcon, StarIcon } from "lucide-
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { useState } from "react";
+import type { Resume } from "@shared/types";
 
 export default function Resumes() {
   const [, navigate] = useLocation();
@@ -16,7 +17,7 @@ export default function Resumes() {
       setDeletingId(id);
       await utils.resume.list.cancel();
       const prev = utils.resume.list.getData();
-      utils.resume.list.setData(undefined, (old) => old?.filter((r) => r.id !== id));
+      utils.resume.list.setData(undefined, (old: Resume[] | undefined) => old?.filter((r: Resume) => r.id !== id));
       return { prev };
     },
     onError: (_err, _vars, ctx) => {
@@ -47,7 +48,7 @@ export default function Resumes() {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2].map((i) => <div key={i} className="h-40 bg-muted animate-pulse rounded-2xl" />)}
+          {[1, 2].map((i: number) => <div key={i} className="h-40 bg-muted animate-pulse rounded-2xl" />)}
         </div>
       ) : resumes.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -63,7 +64,7 @@ export default function Resumes() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {resumes.map((resume) => (
+          {resumes.map((resume: Resume) => (
             <div key={resume.id} className="bg-card border border-border rounded-2xl p-5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2">
