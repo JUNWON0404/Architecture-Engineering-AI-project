@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { and, desc, eq, sql, like, asc } from "drizzle-orm";
+import { and, desc, eq, sql, like, asc, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import bcrypt from "bcryptjs";
@@ -835,11 +835,11 @@ export async function insertNewsScrap(userId: number, data: { title: string; lin
 export async function getNewsScraps(userId: number, companyId?: number | null) {
   return runQuery(
     async (db) => {
-      let q = db.select().from(newsScraps).where(eq(newsScraps.userId, userId));
+      const conditions = [eq(newsScraps.userId, userId)];
       if (companyId !== undefined) {
-        q = q.where(companyId === null ? sql`${newsScraps.companyId} IS NULL` : eq(newsScraps.companyId, companyId)) as any;
+        conditions.push(companyId === null ? isNull(newsScraps.companyId) : eq(newsScraps.companyId, companyId));
       }
-      return q.orderBy(desc(newsScraps.createdAt));
+      return db.select().from(newsScraps).where(and(...conditions)).orderBy(desc(newsScraps.createdAt));
     },
     (store) => {
       let filtered = (store.newsScraps || []).filter((s: any) => s.userId === userId);

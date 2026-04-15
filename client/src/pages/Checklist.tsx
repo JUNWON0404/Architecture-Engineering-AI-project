@@ -77,7 +77,7 @@ export default function Checklist() {
       title: form.title,
       description: form.description || undefined,
       category: form.category || undefined,
-    });
+    } as any);
   };
 
   const toggleComplete = (id: number, isCompleted: boolean | null) => {

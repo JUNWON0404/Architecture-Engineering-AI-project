@@ -155,8 +155,9 @@ export const appRouter = router({
     list: protectedProcedure.query(({ ctx }) => getResumes(ctx.user.id)),
     create: protectedProcedure.input(z.object({ title: z.string(), content: z.string().optional() }))
       .mutation(({ ctx, input }) => createResume({ ...input, userId: ctx.user.id, createdAt: Date.now(), updatedAt: Date.now() })),
+    get: protectedProcedure.input(z.object({ id: z.number() })).query(({ ctx, input }) => getResumeById(input.id, ctx.user.id)),
     update: protectedProcedure.input(z.object({ id: z.number(), title: z.string().optional(), content: z.string().optional(), isDefault: z.boolean().optional() }))
-      .mutation(({ ctx, input }) => updateResume(input.id, ctx.user.id, input)),
+      .mutation(({ ctx, input }) => updateResume(input.id, ctx.user.id, { ...input, isDefault: input.isDefault !== undefined ? (input.isDefault ? 1 : 0) : undefined })),
     delete: protectedProcedure.input(z.object({ id: z.number() })).mutation(({ ctx, input }) => deleteResume(input.id, ctx.user.id)),
   }),
 
@@ -178,7 +179,7 @@ export const appRouter = router({
 
   checklist: router({
     list: protectedProcedure.query(({ ctx }) => getChecklistItems(ctx.user.id)),
-    create: protectedProcedure.input(z.object({ title: z.string() }))
+    create: protectedProcedure.input(z.object({ title: z.string(), description: z.string().optional(), category: z.string().optional() }))
       .mutation(({ ctx, input }) => createChecklistItem({ ...input, userId: ctx.user.id, createdAt: Date.now(), updatedAt: Date.now() })),
     update: protectedProcedure.input(z.object({ id: z.number(), isCompleted: z.boolean().optional() }))
       .mutation(({ ctx, input }) => updateChecklistItem(input.id, ctx.user.id, { ...input, isCompleted: input.isCompleted ? 1 : 0 })),
@@ -187,7 +188,7 @@ export const appRouter = router({
 
   company: router({
     list: publicProcedure.input(z.object({ location: z.string().nullable().optional(), sortBy: z.enum(["rank", "name", "recent"]).optional() }).optional())
-      .query(({ input }) => getAllCompanies(input)),
+      .query(({ input }) => getAllCompanies(input ? { ...input, location: input.location ?? undefined } : undefined)),
     get: publicProcedure.input(z.object({ id: z.number() })).query(({ input }) => getCompanyById(input.id)),
     jobPostings: publicProcedure.input(z.object({ companyId: z.number() })).query(({ input }) => getJobPostingsByCompanyId(input.companyId)),
   }),

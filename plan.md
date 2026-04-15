@@ -12,18 +12,20 @@
 
 ---
 
-## 2. 프로젝트 구조
-- **client/**: React (Vite 기반) 프론트엔드
-  - `src/pages/CoverLetterEditor.tsx`: 단일 마스터 자소서 편집 허브
-  - `src/pages/Dashboard.tsx`: 기업 탐색 및 북마크 필터링 대시보드
-- **server/**: Node.js 백엔드 (tRPC 라우터)
-- **drizzle/**: DB 스키마 및 마이그레이션 관리
+## 2. 프로젝트 구조 및 기술 스택
+- **Frontend**: React (Vite) + Tailwind CSS + Lucide Icons
+- **Backend**: Node.js (Express) + tRPC (Type-safe API)
+- **Database**: PostgreSQL (Supabase) + Drizzle ORM
+- **Deployment**: Vercel (Serverless Functions + Static Hosting)
+  - `api/index.ts`: Vercel 전용 서버 브릿지
+  - `dist/`: Vite 빌드 결과물 (정적 파일)
 
 ---
 
-## 3. 핵심 기능 정의
+## 3. 핵심 기능 및 배포 전략
 - **통합 필터링**: 별도의 북마크 페이지 없이 대시보드 스탯 카드를 통해 기업 리스트를 필터링.
-- **실시간 데이터 동기화**: 브레인스토밍 단계의 모든 세부 정보는 DB와 즉시 동기화되어 유실을 방지.
+- **하이브리드 빌드**: `pnpm build` 시 Vite(프론트)와 esbuild(서버)가 동시에 실행되어 `dist`와 `api` 폴더를 각각 생성.
+- **환경 정합성**: 로컬 `.env`와 Vercel 환경 변수의 동기화를 최우선으로 관리.
 
 ---
 
@@ -31,8 +33,9 @@
 
 ### 🚀 완료된 주요 기능
 - [x] 단일 마스터 자소서 시스템 및 통합 에디터 UI 구축
-- [x] 대시보드 벤토 그리드 레이아웃 및 북마크 필터링 적용
-- [x] DB 스키마 최적화 (타임스탬프 타입 변경 포함)
+- [x] Vercel 배포 환경 최적화 (api/index.ts 구조 및 rewrites 설정)
+- [x] Supabase 실거래 DB 연동 및 타임스탬프 타입 안정화 (bigint)
+- [x] 자소서 MS Word 내보내기 및 건설 뉴스 RSS 연동
 
 ### ⏳ 향후 과제 (NEXT)
 - [ ] **맞춤형 자소서 클로닝**: 마스터 문서를 바탕으로 특정 기업용 복사본 생성 및 튜닝
