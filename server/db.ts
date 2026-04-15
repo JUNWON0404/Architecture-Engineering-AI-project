@@ -1,3 +1,4 @@
+/// <reference types="bcryptjs" />
 import "dotenv/config";
 import { and, desc, eq, sql, like, asc, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
