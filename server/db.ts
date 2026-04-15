@@ -36,16 +36,14 @@ export async function getDb() {
 
   if (!_db) {
     try {
-      console.log("[Database] ⏳ Connecting to Database...");
+      console.log("[Database] ⏳ Creating Drizzle instance...");
       const client = postgres(process.env.DATABASE_URL, { 
         prepare: false,
         connect_timeout: 10,
+        max: 1, // 서버리스 환경 최적화
       });
       _db = drizzle(client);
-      
-      // 실제 연결 확인
-      await client`SELECT 1`;
-      console.log("[Database] ✅ SUCCESS: Database connected!");
+      console.log("[Database] ✅ SUCCESS: Drizzle instance created!");
     } catch (error: any) {
       console.error("[Database] ❌ FAILURE: Connection failed!");
       _connectionFailed = true; 
