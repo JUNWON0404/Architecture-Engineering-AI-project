@@ -29,10 +29,12 @@ let _client: any = null;
  */
 export async function getDb() {
   if (!process.env.DATABASE_URL) {
+    console.error("[Database] DATABASE_URL is missing!");
     throw new Error("DATABASE_URL is missing in .env");
   }
 
   if (!_db) {
+    console.log("[Database] Initializing new connection...");
     try {
       if (!_client) {
         _client = postgres(process.env.DATABASE_URL, { 
@@ -41,8 +43,10 @@ export async function getDb() {
           max: 1, // 서버리스 환경 최적화
           idle_timeout: 20,
         });
+        console.log("[Database] Postgres client created.");
       }
       _db = drizzle(_client);
+      console.log("[Database] Drizzle instance created.");
     } catch (error: any) {
       console.error("[Database] Connection failed!", error);
       throw error;
