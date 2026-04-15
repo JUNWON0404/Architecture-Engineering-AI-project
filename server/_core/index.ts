@@ -35,10 +35,24 @@ export async function createExpressApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
+  // Vercel/Serverless 환경에서는 요청 경로가 /api로 시작할 수도 있고 아닐 수도 있으므로 유연하게 처리
+  const apiRouter = express.Router();
+  
   // OAuth callback
-  registerOAuthRoutes(app);
+  registerOAuthRoutes(apiRouter);
   
   // tRPC API
+  apiRouter.use(
+    "/trpc",
+    createExpressMiddleware({
+      router: appRouter,
+      createContext,
+    })
+  );
+
+  app.use("/api", apiRouter);
+  
+  // Fallback for direct /api/trpc calls
   app.use(
     "/api/trpc",
     createExpressMiddleware({
