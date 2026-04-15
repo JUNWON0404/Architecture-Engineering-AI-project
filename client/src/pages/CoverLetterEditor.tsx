@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,7 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
   const utils = trpc.useUtils();
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [selectedExpId, setSelectedExpId] = useState<string | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
@@ -106,24 +107,64 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     r: "",
   });
 
-  const { data: master, isLoading: isMasterLoading } = trpc.coverLetter.getMaster.useQuery();
-  const { data: resumes = [] } = trpc.resume.list.useQuery();
+  const { data: master, isLoading: isMasterLoading } = trpc.coverLetter.getMaster.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    staleTime: Infinity, // 데이터를 명시적으로 invalidate하기 전까지 유지
+  });
 
-  const experiences: Experience[] = (() => {
+  const experiences: Experience[] = useMemo(() => {
     try {
-      return JSON.parse(form.experience || "[]");
+      if (!form.experience) return [];
+      if (Array.isArray(form.experience)) return form.experience;
+      return JSON.parse(form.experience);
     } catch (e) {
       return [];
     }
-  })();
+  }, [form.experience]);
 
-  const setExperiences = (exps: Experience[]) => {
-    setForm(prev => ({ ...prev, experience: JSON.stringify(exps) }));
-  };
+  // 서버 데이터를 폼에 초기화 (최초 1회)
+  useEffect(() => {
+    if (master && !isInitialized) {
+      setForm({
+        title: master.title || "",
+        company: master.company || "",
+        position: master.position || "",
+        content: master.content || "",
+        status: (master.status as any) || "draft",
+        major: (master as any).major || "",
+        gpa: (master as any).gpa || "",
+        certifications: (master as any).certifications || "",
+        languageSkills: "",
+        experience: (master as any).experience || "[]",
+        activities: (master as any).activities || "",
+        majorCourses: (master as any).majorCourses || "",
+        keywords: (master as any).keywords || "",
+        keyStory: (master as any).keyStory || "",
+      });
+      setIsInitialized(true);
+    }
+  }, [master, isInitialized]);
 
-  const addExperience = (type: Experience["type"]) => {
+  const updateMutation = trpc.coverLetter.update.useMutation({
+    onSuccess: () => {
+      // 성공 시 조용히 쿼리 데이터만 업데이트 (invalidate로 인한 리렌더링 방지)
+      utils.coverLetter.getMaster.setData(undefined, (old: any) => ({ ...old, ...form }));
+    }
+  });
+
+  // 자동 저장 로직 (디바운스)
+  useEffect(() => {
+    if (!master || !isInitialized) return;
+    const timer = setTimeout(() => {
+      updateMutation.mutate({ id: master.id, ...form });
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [form, master?.id, isInitialized]);
+
+  const addExperience = useCallback((type: Experience["type"]) => {
+    const newId = Math.random().toString(36).substr(2, 9);
     const newExp: Experience = {
-      id: Math.random().toString(36).substr(2, 9),
+      id: newId,
       type,
       title: "",
       period: "",
@@ -132,15 +173,27 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
       result: "",
       learned: "",
     };
-    setExperiences([...experiences, newExp]);
-  };
+    
+    setForm(prev => {
+      const currentExps = JSON.parse(prev.experience || "[]");
+      return {
+        ...prev,
+        experience: JSON.stringify([...currentExps, newExp])
+      };
+    });
+    
+    setSelectedExpId(newId);
+    toast.success(`${EXPERIENCE_GUIDES[type].title} 항목이 추가되었습니다.`);
+  }, []);
 
   const updateExperience = (id: string, updates: Partial<Experience>) => {
-    setExperiences(experiences.map(exp => exp.id === id ? { ...exp, ...updates } : exp));
+    const newExperiences = experiences.map(exp => exp.id === id ? { ...exp, ...updates } : exp);
+    setForm(prev => ({ ...prev, experience: JSON.stringify(newExperiences) }));
   };
 
   const removeExperience = (id: string) => {
-    setExperiences(experiences.filter(exp => exp.id !== id));
+    const newExperiences = experiences.filter(exp => exp.id !== id);
+    setForm(prev => ({ ...prev, experience: JSON.stringify(newExperiences) }));
   };
 
   const handleStarChange = (key: keyof typeof starForm, value: string) => {
@@ -149,44 +202,6 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     const merged = `[S] ${newStarForm.s}\n\n[T] ${newStarForm.t}\n\n[A] ${newStarForm.a}\n\n[R] ${newStarForm.r}`;
     setForm(prev => ({ ...prev, keyStory: merged }));
   };
-
-  const updateMutation = trpc.coverLetter.update.useMutation({
-    onSuccess: () => {
-      utils.coverLetter.getMaster.invalidate();
-    },
-    onError: () => {
-      toast.error("자동 저장에 실패했습니다.");
-    }
-  });
-
-  useEffect(() => {
-    if (master) {
-      setForm({
-        title: master.title,
-        company: master.company ?? "",
-        position: master.position ?? "",
-        content: master.content ?? "",
-        status: master.status as "draft" | "completed" | "submitted",
-        major: (master as any).major ?? "",
-        gpa: (master as any).gpa ?? "",
-        certifications: (master as any).certifications ?? "",
-        languageSkills: "",
-        experience: (master as any).experience || "[]",
-        activities: (master as any).activities ?? "",
-        majorCourses: (master as any).majorCourses ?? "",
-        keywords: (master as any).keywords ?? "",
-        keyStory: (master as any).keyStory ?? "",
-      });
-    }
-  }, [master]);
-
-  useEffect(() => {
-    if (!master) return;
-    const timer = setTimeout(() => {
-      updateMutation.mutate({ id: master.id, ...form });
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [form, master?.id]);
 
   useEffect(() => {
     if (form.keyStory && !starForm.s && !starForm.t && !starForm.a && !starForm.r) {
@@ -200,27 +215,7 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     }
   }, [form.keyStory]);
 
-  const nextStep = () => {
-    if (master) updateMutation.mutate({ id: master.id, ...form });
-    setCurrentStep((prev) => (prev + 1) as Step);
-  };
-  
-  const prevStep = () => {
-    if (master) updateMutation.mutate({ id: master.id, ...form });
-    setCurrentStep((prev) => (prev - 1) as Step);
-  };
-
-  const goToStep = (step: Step) => {
-    setCurrentStep(step);
-    if (master) updateMutation.mutate({ id: master.id, ...form });
-  };
-
-  const importResume = (content: string) => {
-    setForm(prev => ({ ...prev, experience: content }));
-    toast.success("이력서 내용을 가져왔습니다.");
-  };
-
-  if (isMasterLoading) {
+  if (isMasterLoading || !isInitialized) {
     return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
   }
 
@@ -248,7 +243,7 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
         <div className="flex items-center justify-between px-4">
           {steps.map((s, idx) => (
             <div key={s.id} className="flex items-center flex-1 last:flex-none">
-              <button type="button" onClick={() => goToStep(s.id as Step)} className="flex flex-col items-center gap-3 group outline-none">
+              <button type="button" onClick={() => setCurrentStep(s.id as Step)} className="flex flex-col items-center gap-3 group outline-none">
                 <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center border-2 transition-all", currentStep === s.id ? "border-primary bg-primary text-primary-foreground font-black shadow-xl shadow-primary/30 scale-110" : currentStep > s.id ? "border-primary bg-primary/10 text-primary group-hover:bg-primary/20" : "border-muted-foreground/30 text-muted-foreground group-hover:border-primary/50")}>
                   {currentStep > s.id ? <CheckCircle2Icon className="w-8 h-8" /> : <span className="text-lg font-black">{s.id}</span>}
                 </div>
@@ -281,13 +276,12 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
                         placeholder="0.0 / 4.5" 
                         value={form.gpa}
                         onChange={(e) => {
-                          const val = e.target.value.replace(/[^0-9.]/g, ""); // 숫자와 점만 허용
+                          const val = e.target.value.replace(/[^0-9.]/g, "");
                           setForm({ ...form, gpa: val });
                         }}
                         className="rounded-xl h-14 bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 text-center text-lg font-mono font-bold text-slate-900"
                       />
                     </div>
-
                     <div className="space-y-3"><Label className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">주요 자격증 / 어학</Label><Input placeholder="예: 건축기사, 토익 900" value={form.certifications} onChange={(e) => setForm({ ...form, certifications: e.target.value })} className="rounded-xl h-14 bg-slate-100 border-none focus:ring-2 focus:ring-indigo-500/20 pl-5 text-lg font-bold text-slate-900" /></div>
                     <div className="md:col-span-3 space-y-4">
                       <div className="flex flex-col gap-1 px-1 text-left"><Label className="text-sm font-black text-slate-500 uppercase tracking-widest">전공 프로젝트 및 직무 심화 학습</Label><p className="text-xs text-slate-400 font-medium text-left">수업 중 수행한 설계 프로젝트나 직무와 직결되는 성과를 적어주세요.</p></div>
@@ -398,48 +392,14 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
                 <div><Label className="text-3xl font-black tracking-tight text-left">Step 4. 최종 자기소개서 완성</Label><p className="text-lg text-slate-500 mt-1 font-medium text-left">준비된 재료들을 연결하여 나만의 문장을 완성하세요.</p></div>
                 <textarea className="w-full h-full min-h-[550px] px-10 py-10 text-xl bg-slate-50 border-none rounded-[3rem] focus:ring-2 focus:ring-primary/20 outline-none transition-all leading-relaxed shadow-inner" placeholder="내용을 작성하세요..." value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} />
               </div>
-              <div className="w-full lg:w-96 space-y-6 text-left">
-                <div className="sticky top-8 space-y-6">
-                  <div className="p-6 bg-slate-900 rounded-[2rem] text-white shadow-xl text-left"><h4 className="flex items-center gap-2 text-slate-400 font-black mb-4 uppercase tracking-widest text-[10px]"><CheckCircle2Icon className="w-3.5 h-3.5" />Target Info</h4><div className="space-y-4"><div><p className="text-[10px] text-slate-500 font-black uppercase mb-1 text-left">지원 기업</p><p className="text-xl font-black text-left">{form.company || "미지정"}</p></div><div><p className="text-[10px] text-slate-500 font-black uppercase mb-1 text-left">지원 직무</p><p className="text-lg font-bold text-slate-200 text-left">{form.position || "미지정"}</p></div></div></div>
-                  <div className="p-8 bg-white border border-slate-200 rounded-[2.5rem] shadow-sm space-y-8 h-[400px] overflow-y-auto custom-scrollbar text-left"><h4 className="text-lg font-black text-slate-900 flex items-center gap-2"><SparklesIcon className="w-5 h-5 text-indigo-500" />경험 소스</h4><div className="space-y-4">{experiences.map((exp) => (<div key={exp.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2"><p className="text-sm font-black">{exp.title}</p><p className="text-xs text-slate-500 line-clamp-2">{exp.keyAction}</p></div>))}</div></div>
-                </div>
-              </div>
             </div>
           )}
 
           <div className="flex items-center justify-between mt-10 pt-6 border-t border-border/60">
-            <Button variant="ghost" onClick={currentStep === 1 ? () => navigate("/dashboard") : prevStep} className="gap-2 text-muted-foreground"><ChevronLeftIcon className="w-4 h-4" />{currentStep === 1 ? "나가기" : "이전 단계"}</Button>
-            <div className="flex items-center gap-2">{currentStep < 4 ? <Button onClick={nextStep} className="gap-2 px-8 h-11 rounded-xl shadow-sm transition-all active:scale-95">다음 단계 <ChevronRightIcon className="w-4 h-4" /></Button> : <Button onClick={() => { if (master) updateMutation.mutate({ id: master.id, ...form }); navigate("/dashboard"); }} className="gap-2 px-10 h-11 rounded-xl bg-primary shadow-md shadow-primary/20"><SaveIcon className="w-4 h-4" />저장 및 종료</Button>}</div>
+            <Button variant="ghost" onClick={currentStep === 1 ? () => navigate("/dashboard") : () => setCurrentStep((prev) => (prev - 1) as Step)} className="gap-2 text-muted-foreground"><ChevronLeftIcon className="w-4 h-4" />{currentStep === 1 ? "나가기" : "이전 단계"}</Button>
+            <div className="flex items-center gap-2">{currentStep < 4 ? <Button onClick={() => setCurrentStep((prev) => (prev + 1) as Step)} className="gap-2 px-8 h-11 rounded-xl shadow-sm transition-all active:scale-95">다음 단계 <ChevronRightIcon className="w-4 h-4" /></Button> : <Button onClick={() => { if (master) updateMutation.mutate({ id: master.id, ...form }); navigate("/dashboard"); }} className="gap-2 px-10 h-11 rounded-xl bg-primary shadow-md shadow-primary/20"><SaveIcon className="w-4 h-4" />저장 및 종료</Button>}</div>
           </div>
         </Card>
-
-        {currentStep === 1 && (
-          <aside className="hidden xl:block w-80 shrink-0 h-full"><div className="sticky top-16 space-y-6 text-left">
-            <div className="p-8 bg-slate-900 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-[50px] -mr-16 -mt-16" />
-              <h4 className="text-xl font-black mb-8 flex items-center gap-3 relative z-10 text-white">
-                <SparklesIcon className="w-6 h-6 text-indigo-400" />
-                합격 작성 가이드
-              </h4>
-              <div className="space-y-10 relative z-10">
-                <div className="space-y-3">
-                  <p className="text-lg text-indigo-300 font-black flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-indigo-400" />이론을 실무로 연결</p>
-                  <p className="text-base text-slate-300 leading-relaxed font-bold">성적 나열은 금물입니다. <br/><span className="text-white">"전공 지식을 현장 설계나 시공 공법에 어떻게 적용했는지"</span>를 적으세요.</p>
-                </div>
-                <div className="space-y-3 border-t border-slate-800 pt-8">
-                  <p className="text-lg text-emerald-400 font-black flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-emerald-400" />현장 용어를 쓰세요</p>
-                  <p className="text-base text-slate-300 leading-relaxed font-bold"><span className="text-white">#공종 #공기단축 #도면검토 #안전사이클</span> <br/>현장 냄새 나는 단어를 섞어야 전문가처럼 보입니다.</p>
-                </div>
-                <div className="space-y-3 border-t border-slate-800 pt-8">
-                  <p className="text-lg text-orange-400 font-black flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-orange-400" />협업의 성과 강조</p>
-                  <p className="text-base text-slate-300 leading-relaxed font-bold">건설은 팀 경기입니다. <br/><span className="text-white">"마찰을 어떻게 중재하여 공기를 맞췄는지"</span> 본인의 역할을 기술하세요.</p>
-                </div>
-              </div>
-              <div className="mt-10 p-4 bg-white/5 rounded-2xl border border-white/10 text-center"><p className="text-xs text-slate-500 font-bold italic">"작은 경험도 건설업의 가치와 연결되면 <br/> 강력한 무기가 됩니다."</p></div>
-            </div>
-            <div className="p-6 bg-indigo-50 border border-indigo-100 rounded-[2rem] shadow-sm"><p className="text-xs text-indigo-900 font-bold leading-relaxed text-left">💡 팁: 입력을 완료하신 후 [다음 단계]를 누르면 이 재료들을 멋진 문장으로 다듬을 수 있습니다.</p></div>
-          </div></aside>
-        )}
       </div>
     </div>
   );
