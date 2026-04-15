@@ -3,12 +3,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.js"
     },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
-  ],
-  "framework": "vite"
+  ]
 }
