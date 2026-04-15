@@ -1,32 +1,10 @@
 import "dotenv/config";
 import express from "express";
-import { createServer } from "http";
-import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
 import { getDb } from "../db";
-
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
-    });
-    server.on("error", () => resolve(false));
-  });
-}
-
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort}`);
-}
 
 export async function createExpressApp() {
   const app = express();
@@ -35,9 +13,14 @@ export async function createExpressApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // Router for Vercel
+  // Vercel/Serverless 환경을 위한 라우터 설정
+  // Vercel rewrites에 의해 /api/trpc/... 요청이 이 앱으로 들어옴
   const apiRouter = express.Router();
+  
+  // OAuth callback (/api/auth/...)
   registerOAuthRoutes(apiRouter);
+  
+  // tRPC API (/api/trpc/...)
   apiRouter.use(
     "/trpc",
     createExpressMiddleware({
@@ -45,55 +28,23 @@ export async function createExpressApp() {
       createContext,
     })
   );
+
+  // 모든 API 요청을 /api 프리픽스로 처리
   app.use("/api", apiRouter);
 
-  // Fallback for /api/trpc direct calls
-  app.use(
-    "/api/trpc",
-    createExpressMiddleware({
-      router: appRouter,
-      createContext,
-    })
-  );
-
-  // Serve static files in production
-  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-    serveStatic(app);
-  }
+  // 헬스체크용
+  app.get("/api/health", (req, res) => res.send("OK"));
 
   return app;
 }
 
-async function startServer() {
-  console.log("[Startup] Initializing database...");
-  await getDb();
-  
-  const app = await createExpressApp();
-  const server = createServer(app);
-
-  if (process.env.NODE_ENV === "development") {
-    await setupVite(app, server);
-  } else {
-    // Static files are already served by createExpressApp for production
-  }
-
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
-
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
-}
-
 const appPromise = createExpressApp();
-
-// Vercel 환경이 아닐 때만 서버 리스닝 시작
-if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
-  startServer().catch(console.error);
-}
 
 // Vercel Serverless Function Handler
 export default async function handler(req: any, res: any) {
+  // DB 연결 시도 (비동기)
+  getDb().catch(err => console.error("[Database] Init error:", err));
+  
   const app = await appPromise;
   return app(req, res);
 }
