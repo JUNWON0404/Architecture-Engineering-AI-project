@@ -36,7 +36,7 @@
 ## 7. 배포 및 환경 정합성
 - **대소문자**: Vercel(Linux)은 파일명 대소문자를 구분함. Import 경로는 실제 파일명과 100% 일치 필수.
 - **빌드 전 검증**: 변경 후 `pnpm check` (tsc --noEmit) 실행하여 타입 오류 확인.
-- **Vercel 구조**: 서버 진입점 `api/index.ts`, 정적 자산 `dist/`. `vercel.json`의 `rewrites` 임의 변경 금지.
+- **Vercel 구조**: 서버 진입점 소스는 `server/vercel.ts`, 빌드 후 실행 파일은 `api/index.js` (esbuild 번들링), 정적 자산은 `dist/`. `vercel.json`의 `rewrites` 임의 변경 금지.
 - **환경 변수**: DB/API 키 추가 시 Vercel 대시보드 동기화 확인.
 - **의존성**: 패키지 추가 시 `pnpm-lock.yaml` 업데이트 및 Node.js 버전(`package.json` 설정) 준수.
 

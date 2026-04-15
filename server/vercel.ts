@@ -1,19 +1,7 @@
 import { createExpressApp } from "./_core/index";
 
-let cachedApp: any = null;
+// Vercel은 Express 앱 인스턴스를 직접 export default 하면 
+// 내부적으로 서버리스 핸들러로 변환하여 처리합니다.
+const app = await createExpressApp();
 
-export default async function handler(req: any, res: any) {
-  try {
-    if (!cachedApp) {
-      cachedApp = await createExpressApp();
-    }
-    return cachedApp(req, res);
-  } catch (err: any) {
-    console.error("[Vercel Runtime Error]:", err);
-    res.setHeader('Content-Type', 'application/json');
-    res.status(500).json({
-      error: "Internal Server Error",
-      message: err.message
-    });
-  }
-}
+export default app;
