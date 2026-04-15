@@ -37,11 +37,13 @@ export async function getDb() {
     console.log("[Database] Initializing new connection...");
     try {
       if (!_client) {
+        const isProduction = process.env.NODE_ENV === "production";
         _client = postgres(process.env.DATABASE_URL, { 
           prepare: false,
           connect_timeout: 10,
           max: 1, // 서버리스 환경 최적화
           idle_timeout: 20,
+          ssl: isProduction ? "require" : false,
         });
         console.log("[Database] Postgres client created.");
       }
