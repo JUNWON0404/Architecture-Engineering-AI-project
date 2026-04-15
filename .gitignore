@@ -6,7 +6,6 @@
 dist/
 build/
 *.dist
-api/index.js
 
 # Google Cloud service account keys (private keys; never commit)
 project-eb7031f7-ec60-493e-966-*.json
