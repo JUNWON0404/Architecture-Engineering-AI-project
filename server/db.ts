@@ -2,7 +2,7 @@ import "dotenv/config";
 import { and, desc, eq, sql, like, asc } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
 import {
