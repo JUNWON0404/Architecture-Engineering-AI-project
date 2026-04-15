@@ -73,4 +73,16 @@ async function startServer() {
   });
 }
 
-startServer().catch(console.error);
+const appPromise = createExpressApp();
+
+if (!process.env.VERCEL) {
+  startServer().catch(console.error);
+}
+
+export default async function handler(req: any, res: any) {
+  const app = await appPromise;
+  if (process.env.NODE_ENV !== "development") {
+    serveStatic(app);
+  }
+  return app(req, res);
+}
