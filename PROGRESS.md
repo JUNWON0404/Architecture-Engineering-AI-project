@@ -13,7 +13,7 @@
 - ✅ **인증 검증**: 실제 DB 기반의 회원가입 및 로그인(BCrypt/JWT) 플로우 테스트 완료.
 
 ### 3. Vercel 배포 최적화
-- ✅ **배포 설정**: `vercel.json` 및 `api/index.ts` 서버리스 핸들러 구축.
+- ✅ **배포 설정**: `vercel.json` 및 `api/index.ts` 서버리스 핸들러 구축 및 라우팅 최적화 완료.
 - ✅ **라우팅 수리**: 정적 파일 서빙 오류 해결을 위한 `rewrites` 규칙 최적화.
 - ✅ **환경 변수**: `DATABASE_URL`, `JWT_SECRET` 기반 배포 준비 완료.
 
