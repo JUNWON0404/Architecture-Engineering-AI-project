@@ -6,5 +6,16 @@
   "bookmarks": [],
   "checklist": [],
   "users": [],
-  "newsScraps": []
+  "newsScraps": [
+    {
+      "id": 6075,
+      "userId": 1,
+      "title": "삼성물산, 히타치 에너지와 협력… 유럽 전력망시장 공략",
+      "link": "http://www.conslove.co.kr/news/articleView.html?idxno=88045",
+      "source": "한국건설신문",
+      "pubDate": "2026. 4. 15.",
+      "companyId": 36,
+      "createdAt": 1776238304222
+    }
+  ]
 }
