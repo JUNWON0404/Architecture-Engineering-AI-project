@@ -1,17 +1,5 @@
 {
   "version": 2,
-  "installCommand": "pnpm install --no-frozen-lockfile",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    },
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
