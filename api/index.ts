@@ -1,5 +1,5 @@
-import { createTRPCContext } from '../server/_core/context';
-import { appRouter } from '../server/routers';
+import { createTRPCContext } from '../server/_core/context.js';
+import { appRouter } from '../server/routers.js';
 import express from 'express';
 import { createExpressMiddleware } from '@trpc/server/adapters/express';
 import cors from 'cors';
