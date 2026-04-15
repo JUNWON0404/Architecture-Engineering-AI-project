@@ -35,13 +35,9 @@ export async function createExpressApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   
-  // Vercel/Serverless 환경에서는 요청 경로가 /api로 시작할 수도 있고 아닐 수도 있으므로 유연하게 처리
+  // Router for Vercel
   const apiRouter = express.Router();
-  
-  // OAuth callback
   registerOAuthRoutes(apiRouter);
-  
-  // tRPC API
   apiRouter.use(
     "/trpc",
     createExpressMiddleware({
@@ -49,10 +45,9 @@ export async function createExpressApp() {
       createContext,
     })
   );
-
   app.use("/api", apiRouter);
-  
-  // Fallback for direct /api/trpc calls
+
+  // Fallback for /api/trpc direct calls
   app.use(
     "/api/trpc",
     createExpressMiddleware({
@@ -61,22 +56,25 @@ export async function createExpressApp() {
     })
   );
 
+  // Serve static files in production
+  if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
+    serveStatic(app);
+  }
+
   return app;
 }
 
 async function startServer() {
-  // 데이터베이스 초기화 및 마이그레이션
   console.log("[Startup] Initializing database...");
-  const db = await getDb();
+  await getDb();
   
   const app = await createExpressApp();
   const server = createServer(app);
 
-  // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
-    serveStatic(app);
+    // Static files are already served by createExpressApp for production
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
@@ -89,14 +87,13 @@ async function startServer() {
 
 const appPromise = createExpressApp();
 
-if (!process.env.VERCEL) {
+// Vercel 환경이 아닐 때만 서버 리스닝 시작
+if (!process.env.VERCEL && process.env.NODE_ENV !== "production") {
   startServer().catch(console.error);
 }
 
+// Vercel Serverless Function Handler
 export default async function handler(req: any, res: any) {
   const app = await appPromise;
-  if (process.env.NODE_ENV !== "development") {
-    serveStatic(app);
-  }
   return app(req, res);
 }
