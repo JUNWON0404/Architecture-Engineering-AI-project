@@ -52,6 +52,7 @@ import {
   deleteNewsScrap,
   getCompanyNote,
   upsertCompanyNote,
+  upsertUser,
 } from "./db";
 
 const rssParser = new Parser();
@@ -106,7 +107,12 @@ export const appRouter = router({
     signIn: publicProcedure.input(z.object({ email: z.string().email(), password: z.string() }))
       .mutation(async ({ input, ctx }) => {
         const user = await authenticateUser(input.email, input.password);
-        const openId = (user as any).openId || `email:${input.email}`;
+        const correctOpenId = `email:${input.email}`;
+        // openId가 없거나 잘못된 경우 DB에서 수정
+        if (!(user as any).openId) {
+          await upsertUser({ openId: correctOpenId, email: input.email, name: user.name, loginMethod: "email", createdAt: (user as any).createdAt || Date.now(), updatedAt: Date.now(), lastSignedIn: Date.now() });
+        }
+        const openId = (user as any).openId || correctOpenId;
         const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
         return { success: true, user };
