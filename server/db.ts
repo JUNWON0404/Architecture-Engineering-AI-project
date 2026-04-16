@@ -90,22 +90,28 @@ async function runQuery<T>(
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) return;
   const openId = user.openId as string;
+  const now = Date.now();
   await runQuery(async (db) => {
-    // openId로 먼저 조회
-    const byOpenId = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    // openId로 이미 존재하면 업데이트
+    const byOpenId = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
     if (byOpenId.length > 0) {
-      await db.update(users).set({ ...user, updatedAt: Date.now() }).where(eq(users.openId, openId));
+      await db.update(users).set({ ...user, updatedAt: now }).where(eq(users.openId, openId));
       return;
     }
-    // 같은 이메일로 다른 방식으로 가입된 계정이 있으면 openId 연결
-    if (user.email) {
-      const byEmail = await db.select().from(users).where(eq(users.email, user.email)).limit(1);
-      if (byEmail.length > 0) {
-        await db.update(users).set({ openId, loginMethod: user.loginMethod, lastSignedIn: user.lastSignedIn, updatedAt: Date.now() }).where(eq(users.email, user.email));
+    // INSERT 시도, email 충돌 발생하면 해당 레코드에 openId 연결
+    try {
+      await db.insert(users).values({ ...user, createdAt: now, updatedAt: now });
+    } catch (e: any) {
+      const isEmailConflict = e?.code === "23505" &&
+        (e?.constraint_name === "users_email_unique" || e?.constraint === "users_email_unique");
+      if (isEmailConflict && user.email) {
+        await db.update(users)
+          .set({ openId, loginMethod: user.loginMethod ?? null, lastSignedIn: user.lastSignedIn ?? now, updatedAt: now })
+          .where(eq(users.email, user.email));
         return;
       }
+      throw e;
     }
-    await db.insert(users).values({ ...user, createdAt: Date.now(), updatedAt: Date.now() });
   });
 }
 
