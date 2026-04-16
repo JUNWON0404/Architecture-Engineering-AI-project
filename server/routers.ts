@@ -95,26 +95,40 @@ export const appRouter = router({
   }),
 
   auth: router({
-    me: publicProcedure.query(({ ctx }) => ctx.user),
+    me: publicProcedure.query(({ ctx }) => {
+      // 쿠키가 있는데 인증 실패한 경우 → 오래된 쿠키 즉시 삭제
+      if (!ctx.user && ctx.req.headers.cookie?.includes(COOKIE_NAME)) {
+        const opts = getSessionCookieOptions(ctx.req);
+        ctx.res.cookie(COOKIE_NAME, "", { ...opts, expires: new Date(0) });
+        // SameSite 없이도 삭제 시도 (이전 버전 쿠키 대응)
+        ctx.res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
+      }
+      return ctx.user;
+    }),
     signUp: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(8), name: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         const user = await createUserWithEmail(input.email, input.password, input.name) as any;
         const openId = user.openId || `email:${input.email}`;
         const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
+        const opts = getSessionCookieOptions(ctx.req);
+        // 기존 쿠키 초기화 후 새 쿠키 세팅
+        ctx.res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...opts, maxAge: ONE_YEAR_MS });
         return { success: true, user };
       }),
     signIn: publicProcedure.input(z.object({ email: z.string().email(), password: z.string() }))
       .mutation(async ({ input, ctx }) => {
         const user = await authenticateUser(input.email, input.password);
         const correctOpenId = `email:${input.email}`;
-        // openId가 없거나 잘못된 경우 DB에서 수정
         if (!(user as any).openId) {
           await upsertUser({ openId: correctOpenId, email: input.email, name: user.name, loginMethod: "email", createdAt: (user as any).createdAt || Date.now(), updatedAt: Date.now(), lastSignedIn: Date.now() });
         }
         const openId = (user as any).openId || correctOpenId;
         const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
+        const opts = getSessionCookieOptions(ctx.req);
+        // 기존 쿠키 초기화 후 새 쿠키 세팅
+        ctx.res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
+        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...opts, maxAge: ONE_YEAR_MS });
         return { success: true, user };
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
