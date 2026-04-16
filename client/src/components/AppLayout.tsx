@@ -23,12 +23,10 @@ import { toast } from "sonner";
 import { useTheme } from "@/contexts/ThemeContext";
 
 const navItems = [
-  { href: "/dashboard", label: "대시보드", icon: LayoutDashboardIcon },
-  { href: "/cover-letters", label: "자기소개서", icon: FileTextIcon },
-  { href: "/interview", label: "면접 질문", icon: MessageSquareIcon },
-  { href: "/resumes", label: "이력서", icon: BriefcaseIcon },
+  { href: "/dashboard", label: "Corporate HUB", icon: LayoutDashboardIcon },
+  { href: "/my-cover-letters", label: "자기소개서", icon: FileTextIcon },
   { href: "/schedules", label: "취업 일정", icon: CalendarIcon },
-  { href: "/checklist", label: "체크리스트", icon: CheckSquareIcon },
+  { href: "/scrapbook", label: "스크랩북", icon: BookmarkIcon },
 ];
 
 interface AppLayoutProps {
@@ -55,102 +53,93 @@ export default function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">로딩 중...</p>
+          <div className="w-10 h-10 border-4 border-muted border-t-primary rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm font-bold tracking-tight">Loading JobReady...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      {/* Sidebar */}
+    <div className="flex min-h-screen bg-background text-foreground transition-colors duration-300">
+      {/* Sidebar - 정제된 고밀도 디자인 */}
       <aside
         className={cn(
           "flex flex-col h-screen sticky top-0 transition-all duration-300 ease-in-out z-30",
-          "bg-sidebar text-sidebar-foreground border-r border-sidebar-border shadow-sm",
-          collapsed ? "w-16" : "w-64"
+          "bg-sidebar border-r border-sidebar-border shadow-[4px_0_24px_rgba(0,0,0,0.02)]",
+          collapsed ? "w-20" : "w-72"
         )}
       >
-        {/* Logo */}
-        <div className={cn("flex items-center h-16 px-4 border-b border-sidebar-border", collapsed ? "justify-center" : "gap-3")}>
+        {/* Logo 영역 - Bento 포인트 */}
+        <div className={cn("flex items-center h-20 px-6 border-b border-sidebar-border", collapsed ? "justify-center" : "gap-4")}>
+          <div className="w-10 h-10 rounded-2xl bg-sidebar-primary flex items-center justify-center shadow-lg shadow-sidebar-primary/10 shrink-0">
+            <BriefcaseIcon className="w-5 h-5 text-sidebar-primary-foreground" />
+          </div>
           {!collapsed && (
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shadow-sm">
-                <BriefcaseIcon className="w-4 h-4 text-sidebar-primary-foreground" />
-              </div>
-              <span className="font-bold text-lg text-sidebar-foreground tracking-tight">JobReady</span>
-            </div>
-          )}
-          {collapsed && (
-            <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center shadow-sm">
-              <BriefcaseIcon className="w-4 h-4 text-sidebar-primary-foreground" />
+            <div className="flex flex-col">
+              <span className="font-black text-xl text-sidebar-primary tracking-tighter leading-none">JobReady</span>
+              <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mt-1">Beta 1.0</span>
             </div>
           )}
         </div>
 
-        {/* Nav */}
-        <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto">
+        {/* Navigation - 고밀도 아이템 */}
+        <nav className="flex-1 py-8 px-4 space-y-2 overflow-y-auto scrollbar-hide">
+          {!collapsed && <p className="text-[10px] font-black text-sidebar-foreground/50 uppercase tracking-[0.2em] px-3 mb-4">Main Menu</p>}
           {navItems.map(({ href, label, icon: Icon }) => {
             const isActive = location === href || (href !== "/dashboard" && location.startsWith(href));
             return (
               <Link key={href} href={href}>
                 <div
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-150 cursor-pointer group",
+                    "flex items-center gap-4 px-4 py-3.5 rounded-[1.25rem] transition-all duration-200 cursor-pointer group relative",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-primary font-bold"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-                    collapsed && "justify-center px-2"
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-xl shadow-sidebar-primary/10"
+                      : "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    collapsed && "justify-center px-0 h-14"
                   )}
                 >
-                  <Icon className={cn("w-5 h-5 flex-shrink-0", isActive && "text-sidebar-primary")} />
-                  {!collapsed && <span className="text-sm font-medium">{label}</span>}
+                  <Icon className={cn("w-5 h-5 shrink-0 transition-transform group-hover:scale-110", isActive ? "text-sidebar-primary-foreground" : "opacity-60 group-hover:opacity-100")} />
+                  {!collapsed && <span className="text-sm font-black tracking-tight">{label}</span>}
+                  {isActive && !collapsed && (
+                    <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse" />
+                  )}
                 </div>
               </Link>
             );
           })}
         </nav>
 
-        {/* User + Collapse */}
-        <div className="border-t border-sidebar-border p-3 space-y-2 bg-sidebar/50">
+        {/* User + Controls - 하단 정밀 배색 */}
+        <div className="p-4 space-y-3 bg-sidebar/50 border-t border-sidebar-border">
           {!collapsed && (
             <Link href="/profile">
-              <div className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent/60 cursor-pointer transition-colors border border-transparent hover:border-sidebar-border/50">
-                <div className="w-8 h-8 rounded-full bg-sidebar-primary/10 flex items-center justify-center flex-shrink-0 border border-sidebar-primary/20">
-                  <UserIcon className="w-4 h-4 text-sidebar-primary" />
+              <div className="flex items-center gap-4 p-3 rounded-2xl bg-sidebar border border-sidebar-border hover:border-indigo-400/50 transition-all cursor-pointer group shadow-sm">
+                <div className="w-10 h-10 rounded-xl bg-sidebar-accent flex items-center justify-center shrink-0 border border-sidebar-border group-hover:bg-indigo-500/10 transition-colors">
+                  <UserIcon className="w-5 h-5 text-sidebar-foreground group-hover:text-indigo-500" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-sidebar-foreground truncate">{user?.name ?? "사용자"}</p>
-                  <p className="text-[10px] text-sidebar-foreground/50 truncate font-medium">{user?.email ?? ""}</p>
+                  <p className="text-sm font-black text-sidebar-foreground truncate">{user?.name ?? "사용자"}</p>
+                  <p className="text-[10px] text-sidebar-foreground/50 truncate font-bold uppercase tracking-tighter">{user?.email?.split('@')[0] ?? ""}</p>
                 </div>
               </div>
             </Link>
           )}
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => toggleTheme?.()}
-              className={cn(
-                "flex items-center justify-center flex-1 h-9 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-colors",
-                collapsed && "px-0"
-              )}
-              title={theme === "light" ? "다크 모드로 전환" : "라이트 모드로 전환"}
-            >
-              {theme === "light" ? <MoonIcon className="w-4 h-4" /> : <SunIcon className="w-4 h-4" />}
-            </button>
+          <div className="flex items-center gap-2">
             {!collapsed && (
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="flex items-center justify-center flex-1 h-9 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-colors"
+                className="flex items-center justify-center flex-1 h-11 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-slate-900 hover:border-slate-200 transition-all shadow-sm"
               >
-                <ChevronLeftIcon className="w-4 h-4" />
+                <ChevronLeftIcon className="w-4 h-4 mr-2" />
+                <span className="text-xs font-bold">Collapse</span>
               </button>
             )}
             {collapsed && (
               <button
                 onClick={() => setCollapsed(!collapsed)}
-                className="flex items-center justify-center w-full h-9 rounded-lg text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/40 transition-colors mt-2"
+                className="flex items-center justify-center w-12 h-11 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-slate-900 hover:border-slate-200 transition-all shadow-sm mx-auto mt-2"
               >
                 <ChevronRightIcon className="w-4 h-4" />
               </button>
@@ -160,18 +149,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
           <button
             onClick={() => logoutMutation.mutate()}
             className={cn(
-              "flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sidebar-foreground/60 hover:text-destructive hover:bg-destructive/10 transition-colors text-xs font-medium",
+              "flex items-center gap-3 w-full px-4 py-3 rounded-xl text-sidebar-foreground/50 hover:text-red-500 hover:bg-red-500/10 transition-all text-xs font-black",
               collapsed && "justify-center"
             )}
           >
-            <LogOutIcon className="w-3.5 h-3.5 flex-shrink-0" />
-            {!collapsed && <span>로그아웃</span>}
+            <LogOutIcon className="w-4 h-4 shrink-0" />
+            {!collapsed && <span>LOGOUT</span>}
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-background">
+      {/* Main Content Area */}
+      <main className="flex-1 h-screen overflow-y-auto bg-background transition-colors duration-300">
         {children}
       </main>
     </div>

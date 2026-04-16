@@ -46,6 +46,11 @@ function Router() {
           <CoverLetterEditor />
         </AppLayout>
       </Route>
+      <Route path="/my-cover-letters">
+        <AppLayout>
+          <CoverLetters />
+        </AppLayout>
+      </Route>
       <Route path="/interview">
         <AppLayout>
           <InterviewQuestions />

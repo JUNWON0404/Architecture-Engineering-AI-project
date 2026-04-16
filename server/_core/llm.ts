@@ -209,14 +209,37 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
+type LLMProvider = "gemini" | "groq" | "forge";
+
+const resolveProvider = (): LLMProvider => {
+  if (ENV.geminiApiKey) return "gemini";
+  if (ENV.groqApiKey && ENV.groqApiKey.startsWith("gsk_")) return "groq";
+  return "forge";
+};
+
+const resolveApiUrl = (provider: LLMProvider) => {
+  if (provider === "gemini") return "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
+  if (provider === "groq") return "https://api.groq.com/openai/v1/chat/completions";
+  return ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
     ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
     : "https://forge.manus.im/v1/chat/completions";
+};
+
+const resolveModel = (provider: LLMProvider) => {
+  if (provider === "gemini") return "gemini-2.0-flash";
+  if (provider === "groq") return "llama-3.3-70b-versatile";
+  return "gemini-2.0-flash";
+};
+
+const resolveApiKey = (provider: LLMProvider) => {
+  if (provider === "gemini") return ENV.geminiApiKey;
+  if (provider === "groq") return ENV.groqApiKey;
+  return ENV.forgeApiKey;
+};
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!ENV.geminiApiKey && !ENV.groqApiKey && !ENV.forgeApiKey) {
+    throw new Error("API Key (GEMINI, GROQ, or FORGE) is not configured");
   }
 };
 
@@ -268,6 +291,8 @@ const normalizeResponseFormat = ({
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
 
+  const provider = resolveProvider();
+
   const {
     messages,
     tools,
@@ -280,7 +305,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.0-flash",
+    model: resolveModel(provider),
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,9 +321,13 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
+  if (provider === "forge") {
+    payload.max_tokens = 32768;
+    payload.thinking = { budget_tokens: 128 };
+  } else if (provider === "groq") {
+    payload.max_tokens = 4096;
+  } else if (provider === "gemini") {
+    payload.max_tokens = 4096;
   }
 
   const normalizedResponseFormat = normalizeResponseFormat({
@@ -312,11 +341,11 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.response_format = normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(resolveApiUrl(provider), {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${resolveApiKey(provider)}`,
     },
     body: JSON.stringify(payload),
   });

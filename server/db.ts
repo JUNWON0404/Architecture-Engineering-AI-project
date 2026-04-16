@@ -231,9 +231,11 @@ export async function createCoverLetter(data: typeof coverLetters.$inferInsert) 
 
 export async function updateCoverLetter(id: number, userId: number, data: Partial<typeof coverLetters.$inferInsert>) {
   return runQuery(async (db) => {
-    await db.update(coverLetters).set(data).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)));
-    const result = await db.select().from(coverLetters).where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId))).limit(1);
-    return result[0];
+    const [updated] = await db.update(coverLetters)
+      .set(data)
+      .where(and(eq(coverLetters.id, id), eq(coverLetters.userId, userId)))
+      .returning();
+    return updated;
   });
 }
 
@@ -398,6 +400,40 @@ export async function getCompanyById(id: number) {
   return runQuery(async (db) => { const result = await db.select().from(companies).where(eq(companies.id, id)).limit(1); return result[0] || null; });
 }
 
+export async function getCoverLettersByCompany(userId: number, companyName: string) {
+  return runQuery(async (db) =>
+    db.select({
+      id: coverLetters.id,
+      title: coverLetters.title,
+      position: coverLetters.position,
+      status: coverLetters.status,
+      updatedAt: coverLetters.updatedAt,
+    })
+    .from(coverLetters)
+    .where(and(eq(coverLetters.userId, userId), eq(coverLetters.company, companyName), eq(coverLetters.isMaster, 0)))
+    .orderBy(desc(coverLetters.updatedAt))
+  );
+}
+
+export async function searchCompanies(query: string) {
+  return runQuery(async (db) =>
+    db.select({
+      id: companies.id,
+      name: companies.name,
+      sector: companies.sector,
+      rank: companies.rank,
+      brand: companies.brand,
+      description: companies.description,
+      keywords: companies.keywords,
+      thumbnail: companies.thumbnail,
+    })
+    .from(companies)
+    .where(like(companies.name, `%${query}%`))
+    .orderBy(asc(companies.rank))
+    .limit(10)
+  );
+}
+
 export async function getJobPostingsByCompanyId(companyId: number) {
   return runQuery(async (db) => db.select().from(jobPostings).where(eq(jobPostings.companyId, companyId)).orderBy(desc(jobPostings.postedAt)));
 }
@@ -443,7 +479,7 @@ export async function insertNewsScrap(userId: number, data: { title: string; lin
       // 기존에 기업 정보가 없었는데 이번에 확인되었다면 업데이트
       if (existing[0].companyId === null && finalCompanyId !== null) {
         const [updated] = await db.update(newsScraps)
-          .set({ companyId: finalCompanyId, updatedAt: now })
+          .set({ companyId: finalCompanyId })
           .where(eq(newsScraps.id, existing[0].id))
           .returning();
         return updated;
