@@ -23,7 +23,9 @@ function getGoogleRedirectUri(req: Request): string {
 export function registerOAuthRoutes(app: IRouter) {
   // Google OAuth - 인증 시작
   app.get("/auth/google", (req: Request, res: Response) => {
+    console.log("[OAuth] GOOGLE_CLIENT_ID set:", !!ENV.googleClientId, "| NODE_ENV:", process.env.NODE_ENV);
     if (!ENV.googleClientId) {
+      console.error("[OAuth] Missing GOOGLE_CLIENT_ID. Available env keys:", Object.keys(process.env).filter(k => k.startsWith("GOOGLE")));
       res.status(500).send("GOOGLE_CLIENT_ID가 설정되지 않았습니다.");
       return;
     }
