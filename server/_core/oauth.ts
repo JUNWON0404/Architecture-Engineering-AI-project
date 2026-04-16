@@ -64,8 +64,8 @@ export function registerOAuthRoutes(app: IRouter) {
 
     try {
       const redirectUri = getGoogleRedirectUri(req);
+      console.log("[Google OAuth] Step 1: token exchange, redirect_uri:", redirectUri);
 
-      // 코드를 액세스 토큰으로 교환
       const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -80,18 +80,19 @@ export function registerOAuthRoutes(app: IRouter) {
 
       if (!tokenRes.ok) {
         const text = await tokenRes.text();
-        throw new Error(`Token exchange failed: ${text}`);
+        throw new Error(`Step 1 failed - Token exchange: ${text}`);
       }
+      console.log("[Google OAuth] Step 1: OK");
 
       const tokenData = await tokenRes.json() as { access_token: string };
 
-      // 사용자 정보 조회
+      console.log("[Google OAuth] Step 2: fetch user info");
       const userInfoRes = await fetch(GOOGLE_USERINFO_URL, {
         headers: { authorization: `Bearer ${tokenData.access_token}` },
       });
 
       if (!userInfoRes.ok) {
-        throw new Error("Failed to fetch Google user info");
+        throw new Error(`Step 2 failed - User info: ${userInfoRes.status}`);
       }
 
       const userInfo = await userInfoRes.json() as {
@@ -100,8 +101,10 @@ export function registerOAuthRoutes(app: IRouter) {
         name: string;
         picture?: string;
       };
+      console.log("[Google OAuth] Step 2: OK, email:", userInfo.email);
 
       const now = Date.now();
+      console.log("[Google OAuth] Step 3: upsertUser");
       await db.upsertUser({
         openId: `google:${userInfo.sub}`,
         name: userInfo.name || null,
@@ -111,20 +114,23 @@ export function registerOAuthRoutes(app: IRouter) {
         updatedAt: now,
         lastSignedIn: now,
       });
+      console.log("[Google OAuth] Step 3: OK");
 
       const sessionToken = await sdk.createSessionToken(`google:${userInfo.sub}`, {
         name: userInfo.name || "",
         expiresInMs: ONE_YEAR_MS,
       });
 
+      res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
       res.cookie(COOKIE_NAME, sessionToken, {
         ...getSessionCookieOptions(req),
         maxAge: ONE_YEAR_MS,
       });
 
+      console.log("[Google OAuth] Step 4: redirecting to /dashboard");
       res.redirect(302, "/dashboard");
     } catch (err) {
-      console.error("[Google OAuth] Callback failed:", err);
+      console.error("[Google OAuth] Callback failed:", String(err));
       res.redirect(302, "/login?error=google_auth_failed");
     }
   });
