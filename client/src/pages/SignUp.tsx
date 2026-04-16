@@ -73,11 +73,11 @@ export function SignUp() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-green-50 to-teal-100">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl">회원가입</CardTitle>
-          <CardDescription>새 계정을 생성하세요</CardDescription>
+    <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-900">
+      <Card className="w-full max-w-md shadow-xl border-slate-200">
+        <CardHeader className="space-y-2 text-center pb-6">
+          <CardTitle className="text-3xl font-bold tracking-tight">JobReady</CardTitle>
+          <CardDescription className="text-slate-500">새 계정을 생성하세요</CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -96,7 +96,7 @@ export function SignUp() {
           <form onSubmit={handleSignUp} className="space-y-4">
             {/* 이름 입력 */}
             <div className="space-y-2">
-              <Label htmlFor="name">이름</Label>
+              <Label htmlFor="name" className="text-slate-700">이름</Label>
               <Input
                 id="name"
                 type="text"
@@ -104,12 +104,13 @@ export function SignUp() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 disabled={isLoading}
+                className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
               />
             </div>
 
             {/* 이메일 입력 */}
             <div className="space-y-2">
-              <Label htmlFor="email">이메일</Label>
+              <Label htmlFor="email" className="text-slate-700">이메일</Label>
               <Input
                 id="email"
                 type="email"
@@ -117,12 +118,13 @@ export function SignUp() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 disabled={isLoading}
+                className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
               />
             </div>
 
             {/* 비밀번호 입력 */}
             <div className="space-y-2">
-              <Label htmlFor="password">비밀번호</Label>
+              <Label htmlFor="password" className="text-slate-700">비밀번호</Label>
               <Input
                 id="password"
                 type="password"
@@ -130,13 +132,14 @@ export function SignUp() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
               />
-              <p className="text-xs text-gray-500">최소 8자 이상</p>
+              <p className="text-xs text-slate-500">최소 8자 이상</p>
             </div>
 
             {/* 비밀번호 확인 입력 */}
             <div className="space-y-2">
-              <Label htmlFor="passwordConfirm">비밀번호 확인</Label>
+              <Label htmlFor="passwordConfirm" className="text-slate-700">비밀번호 확인</Label>
               <Input
                 id="passwordConfirm"
                 type="password"
@@ -144,13 +147,14 @@ export function SignUp() {
                 value={passwordConfirm}
                 onChange={(e) => setPasswordConfirm(e.target.value)}
                 disabled={isLoading}
+                className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
               />
             </div>
 
             {/* 회원가입 버튼 */}
             <Button
               type="submit"
-              className="w-full"
+              className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white mt-2"
               disabled={isLoading || !email || !password || !passwordConfirm || !name}
             >
               {isLoading ? (
@@ -165,12 +169,12 @@ export function SignUp() {
           </form>
 
           {/* 로그인 링크 */}
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">이미 계정이 있으신가요? </span>
+          <div className="mt-8 text-center text-sm">
+            <span className="text-slate-500">이미 계정이 있으신가요? </span>
             <button
               type="button"
               onClick={() => navigate("/login")}
-              className="text-blue-600 hover:text-blue-700 underline"
+              className="text-slate-900 font-semibold hover:underline"
             >
               로그인
             </button>

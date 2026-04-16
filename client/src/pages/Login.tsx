@@ -53,11 +53,13 @@ export function Login() {
   };
 
   return (
-    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-      <Card className="w-full max-w-md shadow-lg">
-        <CardHeader className="space-y-2 text-center">
-          <CardTitle className="text-2xl">로그인</CardTitle>
-          <CardDescription>구글로 로그인 또는 이메일로 접속하세요</CardDescription>
+    <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-900">
+      <Card className="w-full max-w-md shadow-xl border-slate-200">
+        <CardHeader className="space-y-2 text-center pb-6">
+          <CardTitle className="text-3xl font-bold tracking-tight">JobReady</CardTitle>
+          <CardDescription className="text-slate-500">
+            건축/엔지니어링 취업의 모든 것
+          </CardDescription>
         </CardHeader>
 
         <CardContent>
@@ -67,12 +69,12 @@ export function Login() {
             </Alert>
           )}
 
-          {/* Google 로그인 버튼 (메인) */}
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Google 로그인 버튼 (메인) */}
             <Button
               onClick={handleGoogleLogin}
-              variant="default"
-              className="w-full h-12 text-base flex items-center justify-center gap-2"
+              variant="outline"
+              className="w-full h-12 text-base flex items-center justify-center gap-3 bg-white hover:bg-slate-50 border-slate-300 text-slate-700 shadow-sm"
               type="button"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -81,16 +83,16 @@ export function Login() {
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
-              Google로 로그인
+              <span className="font-medium">Google 계정으로 시작하기</span>
             </Button>
 
             {/* 이메일 로그인 토글 (보조) */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+                <div className="w-full border-t border-slate-200" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">또는</span>
+                <span className="px-3 bg-white text-slate-400">또는 이메일로 로그인</span>
               </div>
             </div>
 
@@ -98,16 +100,16 @@ export function Login() {
             {!showEmailForm ? (
               <Button
                 type="button"
-                variant="outline"
-                className="w-full"
+                variant="ghost"
+                className="w-full text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                 onClick={() => setShowEmailForm(true)}
               >
                 이메일로 로그인
               </Button>
             ) : (
-              <form onSubmit={handleEmailLogin} className="space-y-3">
+              <form onSubmit={handleEmailLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">이메일</Label>
+                  <Label htmlFor="email" className="text-slate-700">이메일</Label>
                   <Input
                     id="email"
                     type="email"
@@ -115,11 +117,12 @@ export function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     disabled={isLoading}
+                    className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="password">비밀번호</Label>
+                  <Label htmlFor="password" className="text-slate-700">비밀번호</Label>
                   <Input
                     id="password"
                     type="password"
@@ -127,12 +130,13 @@ export function Login() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
+                    className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
                   />
                 </div>
 
                 <Button
                   type="submit"
-                  className="w-full"
+                  className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white"
                   disabled={isLoading || !email || !password}
                 >
                   {isLoading ? (
@@ -148,7 +152,7 @@ export function Login() {
                 <Button
                   type="button"
                   variant="ghost"
-                  className="w-full"
+                  className="w-full text-slate-500"
                   onClick={() => {
                     setShowEmailForm(false);
                     setEmail("");
@@ -156,19 +160,19 @@ export function Login() {
                     setError("");
                   }}
                 >
-                  돌아가기
+                  취소
                 </Button>
               </form>
             )}
           </div>
 
           {/* 회원가입 링크 */}
-          <div className="mt-4 text-center text-sm">
-            <span className="text-gray-600">계정이 없으신가요? </span>
+          <div className="mt-8 text-center text-sm">
+            <span className="text-slate-500">계정이 없으신가요? </span>
             <button
               type="button"
               onClick={() => navigate("/signup")}
-              className="text-blue-600 hover:text-blue-700 underline"
+              className="text-slate-900 font-semibold hover:underline"
             >
               회원가입
             </button>
