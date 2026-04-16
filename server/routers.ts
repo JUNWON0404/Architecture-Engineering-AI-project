@@ -55,7 +55,10 @@ import {
   upsertUser,
 } from "./db";
 
-const rssParser = new Parser();
+const rssParser = new Parser({
+  timeout: 5000,
+  headers: { "User-Agent": "Mozilla/5.0" }
+});
 
 export const appRouter = router({
   system: systemRouter,
@@ -70,15 +73,18 @@ export const appRouter = router({
       .query(async ({ input }) => {
         try {
           let url;
-          const isGlobal = input.companyName === "건설";
+          const isGlobal = input.companyName === "건설" || input.companyName === "핫뉴스";
           if (isGlobal) url = "http://www.conslove.co.kr/rss/clickTop.xml";
           else url = "http://www.conslove.co.kr/rss/allArticle.xml";
           
           const feed = await rssParser.parseURL(url);
           let items = feed.items;
           if (!isGlobal) {
-            const cleanName = input.companyName.replace(/\(.*\)/, "").trim();
-            items = items.filter(item => item.title?.includes(cleanName) || item.contentSnippet?.includes(cleanName));
+            const cleanName = input.companyName.replace(/\(.*\)/g, "").replace(/주식회사/g, "").trim();
+            items = items.filter(item => 
+              (item.title && item.title.includes(cleanName)) || 
+              (item.contentSnippet && item.contentSnippet.includes(cleanName))
+            );
           }
           
           return items.slice(0, 5).map(item => ({
@@ -88,7 +94,7 @@ export const appRouter = router({
             source: isGlobal ? "한국건설신문 인기" : "한국건설신문"
           }));
         } catch (error) {
-          console.error("[News] RSS Fetch Error:", error);
+          console.error("[News] RSS Fetch Error:", String(error));
           return [];
         }
       }),

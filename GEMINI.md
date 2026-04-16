@@ -45,3 +45,30 @@
 - **사전 검토**: 작업 시작 전 `save_memory`의 프로젝트 특이사항 및 과거 에러 패턴을 최우선 복기한다.
 - **지침 업데이트**: 반복되는 문제는 본 문서(GEMINI.md)의 '기술 규칙'에 즉시 반영하여 영구 지침화한다.
 - **실패 분석**: 해결되지 않은 접근은 '실패한 방법'으로 명시하여 중복 리소스 낭비를 차단한다.
+
+## 9. 프로젝트 구조
+
+```text
+.
+├── client/
+│   ├── public/         # 정적 자산
+│   └── src/
+│       ├── components/ # 공통 UI 및 주요 컴포넌트
+│       ├── contexts/   # React Context (Theme 등)
+│       ├── hooks/      # 커스텀 훅
+│       ├── lib/        # 유틸리티 및 tRPC 클라이언트
+│       ├── pages/      # 라우트별 페이지 컴포넌트
+│       └── _core/      # 프론트엔드 핵심 로직 (useAuth 등)
+├── drizzle/            # DB 스키마 및 마이그레이션
+├── scripts/            # DB 데이터 시딩 및 관리 스크립트
+├── server/             # 백엔드 서버 (Express + tRPC)
+│   ├── _core/          # 시스템 핵심 모듈 (auth, llm, sdk, map 등)
+│   ├── db.ts           # DB 연결 및 스토리지 접근
+│   ├── routers.ts      # API 엔드포인트 (tRPC AppRouter)
+│   ├── dev.ts          # 로컬 개발 서버 진입점
+│   └── vercel.ts       # Vercel 배포 서버 진입점
+└── shared/             # 프론트/백엔드 공유 영역
+    ├── types.ts        # 공통 타입
+    ├── const.ts        # 공통 상수
+    └── _core/          # 공통 코어 로직 (에러 클래스 등)
+```

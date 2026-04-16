@@ -40,11 +40,11 @@ export async function getDb() {
       const isProduction = process.env.NODE_ENV === "production";
       _client = postgres(process.env.DATABASE_URL, {
         prepare: false,
-        connect_timeout: 30,
-        max: 1,
-        idle_timeout: 30,
-        max_lifetime: 60 * 10, // 10분 후 강제 재연결 (서버리스 stale 방지)
-        ssl: isProduction ? "require" : false,
+        connect_timeout: 10, // 30초에서 10초로 단축 (빠른 실패 후 재시도 유도)
+        max: isProduction ? 10 : 5, // 동시 쿼리 처리를 위해 풀 크기 확장
+        idle_timeout: 20,
+        max_lifetime: 60 * 5, // 서버리스 환경을 고려해 5분으로 조정
+        ssl: isProduction ? { rejectUnauthorized: false } : false, // Vercel/Supabase 연결 안정성 강화
         onnotice: () => {},
       });
       _db = drizzle(_client);
@@ -417,8 +417,54 @@ export async function updateUserProfile(userId: number, data: any) {
 // ── News Scraps ──────────────────────────────────────────────
 export async function insertNewsScrap(userId: number, data: { title: string; link: string; source: string; pubDate: string; companyId?: number | null }) {
   const now = Date.now();
-  const scrapData = { userId, title: data.title, link: data.link, source: data.source, pubDate: data.pubDate, companyId: data.companyId ?? null, createdAt: now };
-  return runQuery(async (db) => { const result = await db.insert(newsScraps).values(scrapData).returning(); return result[0]; });
+  return runQuery(async (db) => {
+    let finalCompanyId = (data.companyId === undefined || data.companyId === null) ? null : data.companyId;
+
+    // 1. 스마트 매칭: companyId가 없는 경우 제목에서 기업명 추출 시도
+    if (finalCompanyId === null) {
+      const allCompanies = await db.select({ id: companies.id, name: companies.name }).from(companies);
+      for (const company of allCompanies) {
+        // 기업명에서 (주) 등 제거 후 매칭 확인
+        const cleanName = company.name.replace(/\(.*\)/g, "").replace(/주식회사/g, "").trim();
+        if (data.title.includes(cleanName)) {
+          finalCompanyId = company.id;
+          console.log(`[NewsScrap] Auto-matched news to company: ${company.name} (ID: ${company.id})`);
+          break;
+        }
+      }
+    }
+
+    // 2. 중복 체크 및 업데이트 (기존에 null이었는데 기업명이 확인된 경우 업데이트)
+    const existing = await db.select().from(newsScraps)
+      .where(and(eq(newsScraps.userId, userId), eq(newsScraps.link, data.link)))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // 기존에 기업 정보가 없었는데 이번에 확인되었다면 업데이트
+      if (existing[0].companyId === null && finalCompanyId !== null) {
+        const [updated] = await db.update(newsScraps)
+          .set({ companyId: finalCompanyId, updatedAt: now })
+          .where(eq(newsScraps.id, existing[0].id))
+          .returning();
+        return updated;
+      }
+      return existing[0];
+    }
+
+    // 3. 신규 삽입
+    const scrapData = { 
+      userId, 
+      title: data.title || "제목 없음", 
+      link: data.link, 
+      source: data.source || "출처 미상", 
+      pubDate: data.pubDate || "", 
+      companyId: finalCompanyId, 
+      createdAt: now 
+    };
+
+    const [inserted] = await db.insert(newsScraps).values(scrapData).returning();
+    return inserted;
+  });
 }
 
 export async function getNewsScraps(userId: number, companyId?: number | null) {

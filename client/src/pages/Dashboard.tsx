@@ -141,18 +141,12 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50/50 p-6 md:p-10">
       <div className="max-w-7xl mx-auto space-y-12 text-left">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4 text-left">
-              <div className="w-1.5 h-8 bg-blue-600 rounded-full" />
-              Corporate <span className="text-blue-600">HUB</span>
-            </h1>
-            <p className="text-slate-500 font-medium text-lg text-left">실시간 기업 공고와 나만의 취업 타임라인을 확인하세요.</p>
-          </div>
-          <div className="flex items-center gap-3 bg-white p-2 rounded-3xl border border-slate-200 shadow-sm w-full md:w-[480px]">
-            <div className="pl-4"><Filter className="w-5 h-5 text-slate-300" /></div>
-            <Input placeholder="기업명, 브랜드, 직무 키워드 검색..." className="border-none bg-transparent h-12 text-base focus-visible:ring-0 font-medium" value={search} onChange={(e) => setSearch(e.target.value)} />
-          </div>
+        <div className="flex flex-col gap-2">
+          <h1 className="text-4xl font-black text-slate-900 tracking-tight flex items-center gap-4 text-left">
+            <div className="w-1.5 h-8 bg-blue-600 rounded-full" />
+            Corporate <span className="text-blue-600">HUB</span>
+          </h1>
+          <p className="text-slate-500 font-medium text-lg text-left">실시간 기업 공고와 나만의 취업 타임라인을 확인하세요.</p>
         </div>
 
         {/* Top Stats */}
@@ -171,11 +165,11 @@ export default function Dashboard() {
               <div className="flex items-baseline gap-2 text-left"><span className="text-4xl font-black text-slate-900">{summary?.upcomingSchedules.length || 0}</span><span className="text-sm font-bold text-slate-500">개</span></div>
             </CardContent>
           </Card>
-          <Card className={cn("md:col-span-1 rounded-[2.5rem] border-2 transition-all cursor-pointer group", showOnlyBookmarks ? "bg-amber-600 border-amber-600 shadow-lg shadow-amber-200" : "bg-white border-slate-200")} onClick={() => setShowOnlyBookmarks(!showOnlyBookmarks)}>
+          <Card className="md:col-span-1 rounded-[2.5rem] bg-white border-slate-200 hover:shadow-md transition-all cursor-pointer group" onClick={() => navigate("/scrapbook")}>
             <CardContent className="p-6">
-              <div className={cn("p-3 w-fit rounded-2xl mb-4", showOnlyBookmarks ? "bg-white/20 text-white" : "bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition-colors")}><BookmarkIcon className="w-6 h-6" /></div>
-              <p className={cn("text-[11px] font-black uppercase tracking-widest mb-1", showOnlyBookmarks ? "text-white/60" : "text-slate-400")}>Bookmarks</p>
-              <div className="flex items-baseline gap-2 text-left"><span className={cn("text-4xl font-black", showOnlyBookmarks ? "text-white" : "text-slate-900")}>{summary?.counts.bookmarks || 0}</span><span className={cn("text-sm font-bold", showOnlyBookmarks ? "text-white/60" : "text-slate-500")}>사</span></div>
+              <div className="p-3 bg-amber-50 w-fit rounded-2xl mb-4 group-hover:bg-amber-600 transition-colors text-left"><BookmarkIcon className="w-6 h-6 text-amber-600 group-hover:text-white transition-colors" /></div>
+              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1 text-left">Scrapbook</p>
+              <div className="flex items-baseline gap-2 text-left"><span className="text-4xl font-black text-slate-900">{allScraps.length || 0}</span><span className="text-sm font-bold text-slate-500">건</span></div>
             </CardContent>
           </Card>
           <Card className="md:col-span-1 rounded-[2.5rem] bg-slate-900 border-none shadow-xl group cursor-pointer" onClick={() => navigate("/checklist")}>
@@ -189,7 +183,37 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
           <div className="lg:col-span-8 space-y-8 text-left">
-            <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3"><div className="w-2 h-7 bg-indigo-600 rounded-full" /> Top Companies</h3>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <h3 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                <div className="w-2 h-7 bg-indigo-600 rounded-full" /> 
+                Top Companies
+              </h3>
+              
+              <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm w-full md:w-[400px]">
+                <div className="pl-3"><Filter className="w-4 h-4 text-slate-300" /></div>
+                <Input 
+                  placeholder="기업명, 브랜드 검색..." 
+                  className="border-none bg-transparent h-9 text-sm focus-visible:ring-0 font-medium" 
+                  value={search} 
+                  onChange={(e) => setSearch(e.target.value)} 
+                />
+                <Button 
+                  size="sm"
+                  variant="ghost" 
+                  onClick={() => setShowOnlyBookmarks(!showOnlyBookmarks)}
+                  className={cn(
+                    "h-9 px-3 rounded-xl font-bold transition-all gap-1.5 shrink-0",
+                    showOnlyBookmarks 
+                      ? "bg-amber-600 text-white hover:bg-amber-700 shadow-sm" 
+                      : "text-slate-400 hover:bg-slate-50"
+                  )}
+                >
+                  <BookmarkIcon className={cn("w-3.5 h-3.5", showOnlyBookmarks && "fill-current")} />
+                  <span className="text-xs">관심기업</span>
+                </Button>
+              </div>
+            </div>
+
             <div className="grid gap-4">
               {companiesLoading ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-32 w-full rounded-[2.5rem]" />) : filteredCompanies.map((company: any) => (
                 <Card key={company.id} className={cn("rounded-[2.5rem] border-slate-200 overflow-hidden cursor-pointer transition-all hover:shadow-xl hover:-translate-y-1", selectedCompany?.id === company.id ? "ring-2 ring-blue-600" : "bg-white")} onClick={() => handleCompanyClick(company)}>
@@ -215,24 +239,6 @@ export default function Dashboard() {
           </div>
 
           <div className="lg:col-span-4 space-y-10 text-left">
-            {/* Scrapped Hot News */}
-            {globalScraps.length > 0 && (
-              <section className="space-y-6 text-left">
-                <h3 className="text-xl font-black text-slate-900 flex items-center gap-3"><div className="w-2 h-6 bg-blue-600 rounded-full" /><BookmarkCheckIcon className="w-5 h-5 text-blue-600" />Hot Scraps</h3>
-                <div className="space-y-3">
-                  {globalScraps.slice(0, 3).map((scrap: any) => (
-                    <div key={scrap.id} className="p-4 bg-blue-50/50 border border-blue-100 rounded-2xl relative group text-left">
-                      <button onClick={() => unscrapMutation.mutate({ id: scrap.id })} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400 hover:text-blue-600"><X className="w-3 h-3" /></button>
-                      <a href={scrap.link} target="_blank" rel="noreferrer" className="block space-y-1 text-left">
-                        <span className="text-[9px] font-black text-blue-500 uppercase text-left">{scrap.source}</span>
-                        <h4 className="text-xs font-bold text-slate-800 line-clamp-1 text-left">{scrap.title}</h4>
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
             {/* Incruit Hiring Alert */}
             <section className="space-y-6 text-left">
               <h3 className="text-xl font-black text-slate-900 flex items-center gap-3"><div className="w-2 h-6 bg-orange-500 rounded-full shadow-sm animate-pulse" /><ZapIcon className="w-5 h-5 text-orange-500" />Hiring Alert</h3>

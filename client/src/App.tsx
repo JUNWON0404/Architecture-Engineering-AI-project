@@ -15,6 +15,7 @@ import ResumeEditor from "./pages/ResumeEditor";
 import Schedules from "./pages/Schedules";
 import Checklist from "./pages/Checklist";
 import Profile from "./pages/Profile";
+import Scrapbook from "./pages/Scrapbook";
 import AppLayout from "./components/AppLayout";
 
 function Router() {
@@ -33,6 +34,11 @@ function Router() {
       <Route path="/dashboard">
         <AppLayout>
           <Dashboard />
+        </AppLayout>
+      </Route>
+      <Route path="/scrapbook">
+        <AppLayout>
+          <Scrapbook />
         </AppLayout>
       </Route>
       <Route path="/cover-letters">

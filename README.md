@@ -44,10 +44,30 @@ pnpm db:push
 
 ## 📂 프로젝트 구조
 
-- `client/src`: 프론트엔드 컴포넌트, 훅, 페이지 소스
-- `server/`: Express 서버 및 tRPC 라우터 설정
-- `shared/`: 프론트엔드와 백엔드가 공유하는 타입 정의
-- `drizzle/`: 데이터베이스 스키마 및 마이그레이션 파일
+```text
+.
+├── client/
+│   ├── public/         # 정적 자산
+│   └── src/
+│       ├── components/ # 공통 UI 및 주요 컴포넌트
+│       ├── contexts/   # React Context (Theme 등)
+│       ├── hooks/      # 커스텀 훅
+│       ├── lib/        # 유틸리티 및 tRPC 클라이언트
+│       ├── pages/      # 라우트별 페이지 컴포넌트
+│       └── _core/      # 프론트엔드 핵심 로직 (useAuth 등)
+├── drizzle/            # DB 스키마 및 마이그레이션
+├── scripts/            # DB 데이터 시딩 및 관리 스크립트
+├── server/             # 백엔드 서버 (Express + tRPC)
+│   ├── _core/          # 시스템 핵심 모듈 (auth, llm, sdk, map 등)
+│   ├── db.ts           # DB 연결 및 스토리지 접근
+│   ├── routers.ts      # API 엔드포인트 (tRPC AppRouter)
+│   ├── dev.ts          # 로컬 개발 서버 진입점
+│   └── vercel.ts       # Vercel 배포 서버 진입점
+└── shared/             # 프론트/백엔드 공유 영역
+    ├── types.ts        # 공통 타입
+    ├── const.ts        # 공통 상수
+    └── _core/          # 공통 코어 로직 (에러 클래스 등)
+```
 
 ---
 © 2026 JUNWON0404. All rights reserved.
