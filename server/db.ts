@@ -113,8 +113,9 @@ export async function upsertUser(user: InsertUser): Promise<void> {
         },
       });
   }).catch(async (err) => {
-    // DrizzleQueryError가 postgres 에러를 err.cause로 감싸므로 양쪽 모두 확인
-    const pgCode = err?.code ?? err?.cause?.code;
+    // DrizzleQueryError는 postgres 에러를 err.cause로 감싼다. cause를 우선 확인.
+    const pgCode = err?.cause?.code ?? err?.code;
+    console.log("[DB] upsertUser conflict, pgCode:", pgCode, "email:", user.email);
     // email unique 충돌(23505): 기존 이메일 회원이 Google OAuth로 처음 연결하는 경우
     // 해당 이메일 레코드의 openId를 Google openId로 업데이트해서 계정을 연결한다
     if (pgCode === "23505" && user.email) {
