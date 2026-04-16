@@ -37,13 +37,41 @@
 - [x] Supabase 실거래 DB 연동 및 타임스탬프 타입 안정화 (bigint)
 - [x] 자소서 MS Word 내보내기 및 건설 뉴스 RSS 연동
 
-### ⏳ 향후 과제 (NEXT)
-- [ ] **맞춤형 자소서 클로닝**: 마스터 문서를 바탕으로 특정 기업용 복사본 생성 및 튜닝
-- [ ] **키워드 매칭 분석**: 기업 인재상 키워드와 자소서 유사도 시각화
-- [ ] **AI 엔진 연동**: Gemini 기반 초안 생성 및 첨삭 기능 활성화
-- [ ] **데이터 크롤링**: 건설사 실시간 채용 공고 자동 수집 파이프라인
+### 완료된 주요 기능 (2026-04-16 추가)
+- [x] 마스터 자소서 3단계 재편 (경험정리 → 스토리기술 → 초안완성), 기업별 2단계 (기업설정 → 2차맞춤수정)
+- [x] `refineForCompany` LLM 뮤테이션 추가 (마스터 초안 + 기업 정보로 2차 수정)
+- [x] DOCX / PDF 내보내기 기능 (`client/src/lib/exportCoverLetter.ts`)
+- [x] 마스터 완성 후 기업별 자소서 유도 팝업 (기업 선택 → cloneCoverLetter → 에디터 이동)
+- [x] 경험 추가 시 샘플 데이터가 실제 값으로 삽입되던 버그 수정 (placeholder로만 표시)
+
+### ⏳ 자소서 Lovable 개선 잔여 항목
+
+#### 3. 저장 확신 제공 — "마지막 저장: N분 전" 상시 표시
+**파일:** `client/src/pages/CoverLetterEditor.tsx`
+- `updateMutation.onSuccess`에서 `lastSavedAt` 상태를 `Date.now()`로 갱신
+- 헤더 영역에 "마지막 저장: 방금 전 / N분 전" 텍스트 상시 노출
+- 1분 간격 `setInterval`로 상대 시각 업데이트
+- 저장 중: 스피너, 완료: 시각으로 전환
+
+#### 4. STAR 작성 중 가이드 질문 상시 노출
+**파일:** `client/src/pages/CoverLetterEditor.tsx`
+- 마스터 Step 2 STAR 입력 화면에서 현재 경험 타입의 가이드 질문 3개가 사라지는 문제
+- STAR 입력창 상단 또는 우측에 `EXPERIENCE_GUIDES[exp.type].questions` 접이식 패널로 상시 노출
+- 경험 선택 시 해당 타입 질문으로 자동 갱신
+
+#### 5. 경험 없이 초안 생성 시 품질 경고
+**파일:** `client/src/pages/CoverLetterEditor.tsx`
+- `handleGenerateMasterDraft` 호출 시 경험이 없거나 STAR 필드가 모두 비어있으면 경고 다이얼로그 표시
+- "경험 데이터가 없으면 초안 품질이 낮아집니다. 그래도 생성하시겠습니까?"
+- Step 1, 2로 유도하는 버튼을 경고 안에 함께 제공
+
+#### 6. 기업별 자소서와 마스터 관계 시각화
+**파일:** `client/src/pages/CoverLetters.tsx`, `client/src/pages/Dashboard.tsx`
+- 기업별 자소서 카드에 "마스터 기반" 뱃지 표시 (`parentId !== null` 조건)
+- 마스터 `updatedAt` > 기업별 자소서 `updatedAt` 이면 "마스터가 업데이트됨" 경고 표시
+- `getCoverLettersBrief` 응답에 `parentId`, `updatedAt` 포함 여부 확인 (현재 포함됨)
 
 ---
 
-> **최근 업데이트:** 2026-04-15
-> **작성자:** Gemini CLI (베테랑 개발자)
+> **최근 업데이트:** 2026-04-16
+> **작성자:** Claude Sonnet 4.6
