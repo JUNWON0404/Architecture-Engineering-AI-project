@@ -26,6 +26,7 @@ let _client: any = null;
 
 /**
  * 데이터베이스 연결 객체(Drizzle)를 반환합니다.
+ * 연결 오류 발생 시 싱글턴을 초기화해 재연결을 허용합니다.
  */
 export async function getDb() {
   if (!process.env.DATABASE_URL) {
@@ -36,20 +37,21 @@ export async function getDb() {
   if (!_db) {
     console.log("[Database] Initializing new connection...");
     try {
-      if (!_client) {
-        const isProduction = process.env.NODE_ENV === "production";
-        _client = postgres(process.env.DATABASE_URL, { 
-          prepare: false,
-          connect_timeout: 10,
-          max: 1, // 서버리스 환경 최적화
-          idle_timeout: 20,
-          ssl: isProduction ? "require" : false,
-        });
-        console.log("[Database] Postgres client created.");
-      }
+      const isProduction = process.env.NODE_ENV === "production";
+      _client = postgres(process.env.DATABASE_URL, {
+        prepare: false,
+        connect_timeout: 30,
+        max: 1,
+        idle_timeout: 30,
+        max_lifetime: 60 * 10, // 10분 후 강제 재연결 (서버리스 stale 방지)
+        ssl: isProduction ? "require" : false,
+        onnotice: () => {},
+      });
       _db = drizzle(_client);
-      console.log("[Database] Drizzle instance created.");
+      console.log("[Database] Connection established.");
     } catch (error: any) {
+      _client = null;
+      _db = null;
       console.error("[Database] Connection failed!", error);
       throw error;
     }
@@ -57,14 +59,31 @@ export async function getDb() {
   return _db;
 }
 
+export function resetDbConnection() {
+  _client = null;
+  _db = null;
+}
+
 /**
- * DB 쿼리 실행용 공통 헬퍼
+ * DB 쿼리 실행용 공통 헬퍼.
+ * 연결 오류 발생 시 싱글턴을 초기화하고 한 번 재시도합니다.
  */
 async function runQuery<T>(
   dbQuery: (db: NonNullable<ReturnType<typeof drizzle>>) => Promise<T>
 ): Promise<T> {
   const db = await getDb();
-  return await dbQuery(db as any);
+  try {
+    return await dbQuery(db as any);
+  } catch (error: any) {
+    const isConnErr = error?.code === "CONNECTION_CLOSED" || error?.code === "CONNECTION_ENDED" || error?.message?.includes("connection");
+    if (isConnErr) {
+      console.warn("[Database] Connection error, resetting and retrying once...");
+      resetDbConnection();
+      const freshDb = await getDb();
+      return await dbQuery(freshDb as any);
+    }
+    throw error;
+  }
 }
 
 // ── User Management ──────────────────────────────────────────
@@ -106,9 +125,17 @@ export async function verifyPassword(plainPassword: string, hashedPassword: stri
 export async function createUserWithEmail(email: string, password: string, name?: string) {
   const hashedPassword = await hashPassword(password);
   const now = Date.now();
-  const userData = { email, password: hashedPassword, name: name || null, loginMethod: "email", createdAt: now, updatedAt: now, lastSignedIn: now };
   return runQuery(async (db) => {
-    await db.insert(users).values(userData as any);
+    await db.insert(users).values({
+      openId: `email:${email}`,
+      email,
+      password: hashedPassword,
+      name: name || null,
+      loginMethod: "email",
+      createdAt: now,
+      updatedAt: now,
+      lastSignedIn: now,
+    });
     const user = await db.select().from(users).where(eq(users.email, email)).limit(1);
     return user[0];
   });
