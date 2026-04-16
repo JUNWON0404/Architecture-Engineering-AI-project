@@ -91,12 +91,21 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) return;
   const openId = user.openId as string;
   await runQuery(async (db) => {
-    const existingUser = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-    if (existingUser.length > 0) {
+    // openId로 먼저 조회
+    const byOpenId = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+    if (byOpenId.length > 0) {
       await db.update(users).set({ ...user, updatedAt: Date.now() }).where(eq(users.openId, openId));
-    } else {
-      await db.insert(users).values({ ...user, createdAt: Date.now(), updatedAt: Date.now() });
+      return;
     }
+    // 같은 이메일로 다른 방식으로 가입된 계정이 있으면 openId 연결
+    if (user.email) {
+      const byEmail = await db.select().from(users).where(eq(users.email, user.email)).limit(1);
+      if (byEmail.length > 0) {
+        await db.update(users).set({ openId, loginMethod: user.loginMethod, lastSignedIn: user.lastSignedIn, updatedAt: Date.now() }).where(eq(users.email, user.email));
+        return;
+      }
+    }
+    await db.insert(users).values({ ...user, createdAt: Date.now(), updatedAt: Date.now() });
   });
 }
 
