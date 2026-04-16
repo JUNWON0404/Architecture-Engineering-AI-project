@@ -96,13 +96,6 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query(({ ctx }) => {
-      // 쿠키가 있는데 인증 실패한 경우 → 오래된 쿠키 즉시 삭제
-      if (!ctx.user && ctx.req.headers.cookie?.includes(COOKIE_NAME)) {
-        const opts = getSessionCookieOptions(ctx.req);
-        ctx.res.cookie(COOKIE_NAME, "", { ...opts, expires: new Date(0) });
-        // SameSite 없이도 삭제 시도 (이전 버전 쿠키 대응)
-        ctx.res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
-      }
       return ctx.user;
     }),
     signUp: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(8), name: z.string().optional() }))
