@@ -171,8 +171,8 @@ class SDKServer {
     return this.signSession(
       {
         openId,
-        appId: ENV.appId,
-        name: options.name || "",
+        appId: ENV.appId || "jobready",
+        name: options.name || "user",
       },
       options
     );
@@ -212,19 +212,17 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(appId) ||
-        !isNonEmptyString(name)
-      ) {
+      console.log("[Auth] JWT payload keys:", Object.keys(payload), "| openId type:", typeof openId, "| openId value:", String(openId).slice(0, 30));
+
+      if (!isNonEmptyString(openId)) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
       }
 
       return {
-        openId,
-        appId,
-        name,
+        openId: openId as string,
+        appId: (appId as string) || "jobready",
+        name: (name as string) || "",
       };
     } catch (error) {
       console.warn("[Auth] Session verification failed", String(error));

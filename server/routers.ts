@@ -124,6 +124,7 @@ export const appRouter = router({
           await upsertUser({ openId: correctOpenId, email: input.email, name: user.name, loginMethod: "email", createdAt: (user as any).createdAt || Date.now(), updatedAt: Date.now(), lastSignedIn: Date.now() });
         }
         const openId = (user as any).openId || correctOpenId;
+        console.log("[signIn] creating token with openId:", openId);
         const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
         const opts = getSessionCookieOptions(ctx.req);
         // 기존 쿠키 초기화 후 새 쿠키 세팅
