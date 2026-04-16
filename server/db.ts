@@ -92,24 +92,33 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   const openId = user.openId as string;
   const now = Date.now();
   await runQuery(async (db) => {
+    console.log("[upsertUser] openId:", openId, "| email:", user.email);
+
     // openId로 이미 존재하면 업데이트 후 종료
     const byOpenId = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
+    console.log("[upsertUser] byOpenId count:", byOpenId.length);
     if (byOpenId.length > 0) {
       await db.update(users).set({ ...user, updatedAt: now }).where(eq(users.openId, openId));
+      console.log("[upsertUser] updated by openId");
       return;
     }
-    // email 충돌 시 해당 레코드에 openId를 연결하는 upsert (DB 레벨 원자적 처리)
-    await db.insert(users)
-      .values({ ...user, createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({
-        target: users.email,
-        set: {
-          openId: sql`excluded."openId"`,
-          loginMethod: sql`excluded."loginMethod"`,
-          lastSignedIn: sql`excluded."lastSignedIn"`,
-          updatedAt: sql`excluded."updatedAt"`,
-        },
-      });
+
+    // email로 존재하면 openId 연결
+    if (user.email) {
+      const byEmail = await db.select({ id: users.id, openId: users.openId }).from(users).where(eq(users.email, user.email)).limit(1);
+      console.log("[upsertUser] byEmail count:", byEmail.length, "| existing openId:", byEmail[0]?.openId);
+      if (byEmail.length > 0) {
+        await db.update(users)
+          .set({ openId, loginMethod: user.loginMethod ?? null, lastSignedIn: user.lastSignedIn ?? now, updatedAt: now })
+          .where(eq(users.email, user.email));
+        console.log("[upsertUser] updated by email");
+        return;
+      }
+    }
+
+    console.log("[upsertUser] inserting new user");
+    await db.insert(users).values({ ...user, createdAt: now, updatedAt: now });
+    console.log("[upsertUser] inserted");
   });
 }
 
