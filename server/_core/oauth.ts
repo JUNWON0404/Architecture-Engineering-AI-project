@@ -31,6 +31,7 @@ export function registerOAuthRoutes(app: IRouter) {
     }
 
     const redirectUri = getGoogleRedirectUri(req);
+    console.log("[OAuth] redirect_uri:", redirectUri);
     const params = new URLSearchParams({
       client_id: ENV.googleClientId,
       redirect_uri: redirectUri,

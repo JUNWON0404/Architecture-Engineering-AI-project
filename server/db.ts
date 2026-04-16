@@ -126,6 +126,18 @@ export async function createUserWithEmail(email: string, password: string, name?
   const hashedPassword = await hashPassword(password);
   const now = Date.now();
   return runQuery(async (db) => {
+    const existing = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (existing.length > 0) {
+      // openId가 null인 깨진 레코드면 수정 후 반환
+      if (!existing[0].openId) {
+        await db.update(users)
+          .set({ openId: `email:${email}`, password: hashedPassword, name: name || existing[0].name, updatedAt: now })
+          .where(eq(users.email, email));
+        const fixed = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        return fixed[0];
+      }
+      throw new Error("이미 사용 중인 이메일입니다.");
+    }
     await db.insert(users).values({
       openId: `email:${email}`,
       email,
