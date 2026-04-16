@@ -92,33 +92,24 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   const openId = user.openId as string;
   const now = Date.now();
   await runQuery(async (db) => {
-    console.log("[upsertUser] openId:", openId, "| email:", user.email);
+    // 1. openId로 UPDATE 시도
+    const byOpenId = await db.update(users)
+      .set({ ...user, updatedAt: now })
+      .where(eq(users.openId, openId))
+      .returning({ id: users.id });
+    if (byOpenId.length > 0) return;
 
-    // openId로 이미 존재하면 업데이트 후 종료
-    const byOpenId = await db.select({ id: users.id }).from(users).where(eq(users.openId, openId)).limit(1);
-    console.log("[upsertUser] byOpenId count:", byOpenId.length);
-    if (byOpenId.length > 0) {
-      await db.update(users).set({ ...user, updatedAt: now }).where(eq(users.openId, openId));
-      console.log("[upsertUser] updated by openId");
-      return;
-    }
-
-    // email로 존재하면 openId 연결
+    // 2. email로 UPDATE 시도 (같은 이메일로 다른 방식 가입된 경우 openId 연결)
     if (user.email) {
-      const byEmail = await db.select({ id: users.id, openId: users.openId }).from(users).where(eq(users.email, user.email)).limit(1);
-      console.log("[upsertUser] byEmail count:", byEmail.length, "| existing openId:", byEmail[0]?.openId);
-      if (byEmail.length > 0) {
-        await db.update(users)
-          .set({ openId, loginMethod: user.loginMethod ?? null, lastSignedIn: user.lastSignedIn ?? now, updatedAt: now })
-          .where(eq(users.email, user.email));
-        console.log("[upsertUser] updated by email");
-        return;
-      }
+      const byEmail = await db.update(users)
+        .set({ openId, loginMethod: user.loginMethod ?? null, lastSignedIn: user.lastSignedIn ?? now, updatedAt: now })
+        .where(eq(users.email, user.email))
+        .returning({ id: users.id });
+      if (byEmail.length > 0) return;
     }
 
-    console.log("[upsertUser] inserting new user");
+    // 3. 신규 사용자 INSERT
     await db.insert(users).values({ ...user, createdAt: now, updatedAt: now });
-    console.log("[upsertUser] inserted");
   });
 }
 
