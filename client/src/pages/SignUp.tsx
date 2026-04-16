@@ -21,6 +21,7 @@ export function SignUp() {
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   // TRPC를 이용한 회원가입 API 호출
   const signUpMutation = trpc.auth.signUp.useMutation();
@@ -59,9 +60,9 @@ export function SignUp() {
         name,
       });
 
-      // 풀 리로드로 이동해야 서버 쿠키가 확실히 반영됨
       void result;
-      window.location.href = "/dashboard";
+      setSuccess(true);
+      setTimeout(() => { window.location.href = "/dashboard"; }, 1500);
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "회원가입 실패. 다시 시도해주세요.";
@@ -80,7 +81,11 @@ export function SignUp() {
         </CardHeader>
 
         <CardContent>
-          {/* 에러 메시지 표시 */}
+          {success && (
+            <Alert className="mb-4 border-green-300 bg-green-50 text-green-800">
+              <AlertDescription>회원가입이 완료되었습니다. 대시보드로 이동합니다...</AlertDescription>
+            </Alert>
+          )}
           {error && (
             <Alert variant="destructive" className="mb-4">
               <AlertDescription>{error}</AlertDescription>
