@@ -91,26 +91,45 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) return;
   const now = Date.now();
   await runQuery(async (db) => {
-    // ON CONFLICT (email) DO UPDATE를 사용하여 원자적 처리
-    // 1. 해당 이메일이 없으면 INSERT
-    // 2. 이메일이 이미 존재하면 해당 레코드의 openId, loginMethod, lastSignedIn, updatedAt을 갱신
+    // openId 기준 upsert: 재로그인 시 openId 충돌이 먼저 발생해도 안전하게 처리
+    // email 충돌(기존 이메일 회원이 OAuth 로그인) 시에도 openId를 업데이트
+    const values = {
+      ...user,
+      createdAt: user.createdAt ?? now,
+      updatedAt: user.updatedAt ?? now,
+      lastSignedIn: user.lastSignedIn ?? now,
+    };
+
+    // Step 1: openId 기준 upsert (재로그인 처리)
     await db.insert(users)
-      .values({
-        ...user,
-        createdAt: user.createdAt ?? now,
-        updatedAt: user.updatedAt ?? now,
-        lastSignedIn: user.lastSignedIn ?? now,
-      })
+      .values(values)
       .onConflictDoUpdate({
-        target: users.email,
+        target: users.openId,
         set: {
-          openId: user.openId,
           loginMethod: user.loginMethod,
-          name: user.name, // 이름이 변경되었을 수 있으므로 업데이트
+          name: user.name,
           lastSignedIn: user.lastSignedIn ?? now,
           updatedAt: now,
         },
       });
+  }).catch(async (err) => {
+    // email unique 충돌: 기존 이메일 회원이 OAuth로 처음 연결하는 경우
+    // openId를 해당 이메일 레코드에 덮어써서 계정을 연결한다
+    if (err?.code === "23505" && user.email) {
+      await runQuery(async (db) => {
+        await db.update(users)
+          .set({
+            openId: user.openId!,
+            loginMethod: user.loginMethod,
+            name: user.name,
+            lastSignedIn: user.lastSignedIn ?? now,
+            updatedAt: now,
+          })
+          .where(eq(users.email, user.email!));
+      });
+    } else {
+      throw err;
+    }
   });
 }
 

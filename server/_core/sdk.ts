@@ -268,8 +268,9 @@ class SDKServer {
     const signedInAt = Date.now();
     let user = await db.getUserByOpenId(sessionUserId);
 
-    // If user not in DB, sync from OAuth server automatically
-    if (!user) {
+    // If user not in DB, attempt sync from OAuth server (Manus legacy path)
+    // OAUTH_SERVER_URL이 설정된 경우에만 시도한다. Google OAuth 전용 배포에서는 불필요.
+    if (!user && ENV.oAuthServerUrl) {
       try {
         const userInfo = await this.getUserInfoWithJwt(sessionCookie ?? "");
         const now = Date.now();
@@ -285,27 +286,6 @@ class SDKServer {
         user = await db.getUserByOpenId(userInfo.openId);
       } catch (error) {
         console.error("[Auth] Failed to sync user from OAuth:", error);
-        // 개발 환경에서는 OAuth 실패를 무시하고 계속 진행
-        if (process.env.NODE_ENV === "development") {
-          console.warn("[Auth] Development mode: Skipping OAuth sync failure");
-          // DB에 사용자가 없으면 임시 사용자 생성
-          const tempUser = {
-            id: parseInt(sessionUserId) || 1,
-            openId: sessionUserId,
-            name: "Dev User",
-            email: `dev-${sessionUserId}@localhost`,
-            loginMethod: "development",
-            role: "admin",
-            bio: null,
-            targetJob: null,
-            targetCompany: null,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-            lastSignedIn: Date.now(),
-            password: null,
-          };
-          return tempUser as User;
-        }
         throw ForbiddenError("Failed to sync user info");
       }
     }

@@ -104,9 +104,10 @@ export function registerOAuthRoutes(app: IRouter) {
       console.log("[Google OAuth] Step 2: OK, email:", userInfo.email);
 
       const now = Date.now();
-      console.log("[Google OAuth] Step 3: upsertUser");
+      const googleOpenId = `google:${userInfo.sub}`;
+      console.log("[Google OAuth] Step 3: upsertUser, openId:", googleOpenId);
       await db.upsertUser({
-        openId: `google:${userInfo.sub}`,
+        openId: googleOpenId,
         name: userInfo.name || null,
         email: userInfo.email || null,
         loginMethod: "google",
@@ -116,10 +117,15 @@ export function registerOAuthRoutes(app: IRouter) {
       });
       console.log("[Google OAuth] Step 3: OK");
 
-      const sessionToken = await sdk.createSessionToken(`google:${userInfo.sub}`, {
+      if (!ENV.cookieSecret) {
+        throw new Error("JWT_SECRET 환경 변수가 설정되지 않았습니다. Vercel 대시보드에서 확인하세요.");
+      }
+
+      const sessionToken = await sdk.createSessionToken(googleOpenId, {
         name: userInfo.name || "",
         expiresInMs: ONE_YEAR_MS,
       });
+      console.log("[Google OAuth] Step 3.5: sessionToken created, length:", sessionToken.length);
 
       res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
       res.cookie(COOKIE_NAME, sessionToken, {
