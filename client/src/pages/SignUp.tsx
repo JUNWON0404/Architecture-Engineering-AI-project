@@ -24,7 +24,6 @@ export function SignUp() {
 
   // TRPC를 이용한 회원가입 API 호출
   const signUpMutation = trpc.auth.signUp.useMutation();
-  const utils = trpc.useUtils();
 
   /**
    * 회원가입 버튼 클릭 핸들러
@@ -60,11 +59,9 @@ export function SignUp() {
         name,
       });
 
-      // 사용자 정보 업데이트 (캐시)
-      utils.auth.me.setData(undefined, result.user);
-
-      // 대시보드로 리디렉션
-      navigate("/dashboard");
+      // 풀 리로드로 이동해야 서버 쿠키가 확실히 반영됨
+      void result;
+      window.location.href = "/dashboard";
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "회원가입 실패. 다시 시도해주세요.";
