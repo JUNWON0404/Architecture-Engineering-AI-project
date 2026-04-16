@@ -46,7 +46,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [collapsed, setCollapsed] = useState(false);
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
-      window.location.href = "/";
+      window.location.href = "/login";
     },
     onError: () => toast.error("로그아웃에 실패했습니다."),
   });

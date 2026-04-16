@@ -112,7 +112,9 @@ export const appRouter = router({
         return { success: true, user };
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
-      ctx.res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(ctx.req), maxAge: -1 });
+      const opts = getSessionCookieOptions(ctx.req);
+      // maxAge 없이 expires를 과거로 설정해 쿠키 삭제
+      ctx.res.cookie(COOKIE_NAME, "", { ...opts, expires: new Date(0) });
       return { success: true };
     }),
   }),
