@@ -36,14 +36,10 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ children }: AppLayoutProps) {
-  // 개발 환경에서는 인증 체크 스킵 (기능 개발 용이)
-  const isDev = import.meta.env.DEV;
   const { theme, toggleTheme } = useTheme();
-  
-  // useAuth: 사용자 정보 조회 및 인증 상태 확인
-  // 항상 redirectOnUnauthenticated를 false로 설정하여 인증 없이도 접근 가능하게 수정
-  const { user, loading, isAuthenticated } = useAuth({
-    redirectOnUnauthenticated: false,
+
+  const { user, loading } = useAuth({
+    redirectOnUnauthenticated: true,
     redirectPath: "/login",
   });
   const [location] = useLocation();
@@ -65,8 +61,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
       </div>
     );
   }
-
-  // 인증 여부와 관계없이 메인 콘텐츠를 보여주도록 차단 로직 제거
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">

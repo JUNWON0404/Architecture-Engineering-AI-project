@@ -94,27 +94,20 @@ export const appRouter = router({
   }),
 
   auth: router({
-    me: publicProcedure.query(({ ctx }) => {
-      if (!ctx.user && process.env.NODE_ENV === "development") {
-        return {
-          id: 1, openId: "dev-user-id", email: "dev@example.com", name: "개발 사용자", role: "user",
-          bio: "안녕하세요, 개발 사용자입니다.", targetJob: "풀스택 개발자", targetCompany: "구글",
-          loginMethod: "email", createdAt: Date.now(), updatedAt: Date.now(), lastSignedIn: Date.now(),
-        };
-      }
-      return ctx.user;
-    }),
+    me: publicProcedure.query(({ ctx }) => ctx.user),
     signUp: publicProcedure.input(z.object({ email: z.string().email(), password: z.string().min(8), name: z.string().optional() }))
       .mutation(async ({ input, ctx }) => {
         const user = await createUserWithEmail(input.email, input.password, input.name) as any;
-        const sessionToken = await sdk.createSessionToken(user.id.toString(), { name: user.name || "", expiresInMs: ONE_YEAR_MS });
+        const openId = user.openId || `email:${input.email}`;
+        const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
         return { success: true, user };
       }),
     signIn: publicProcedure.input(z.object({ email: z.string().email(), password: z.string() }))
       .mutation(async ({ input, ctx }) => {
         const user = await authenticateUser(input.email, input.password);
-        const sessionToken = await sdk.createSessionToken(user.id.toString(), { name: user.name || "", expiresInMs: ONE_YEAR_MS });
+        const openId = (user as any).openId || `email:${input.email}`;
+        const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...getSessionCookieOptions(ctx.req), maxAge: ONE_YEAR_MS });
         return { success: true, user };
       }),
