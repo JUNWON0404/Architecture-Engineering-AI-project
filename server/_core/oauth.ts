@@ -15,8 +15,15 @@ const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 
 function getGoogleRedirectUri(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] ?? req.protocol;
-  const host = req.headers["x-forwarded-host"] ?? req.headers.host;
+  // 환경변수로 고정 URL 지정 가능 (Vercel 배포 시 권장)
+  if (process.env.GOOGLE_REDIRECT_URI) {
+    return process.env.GOOGLE_REDIRECT_URI;
+  }
+  // x-forwarded-proto 헤더는 "https,https" 처럼 복수로 올 수 있으므로 첫 번째 값만 사용
+  const rawProto = req.headers["x-forwarded-proto"];
+  const proto = (Array.isArray(rawProto) ? rawProto[0] : rawProto?.split(",")[0]?.trim()) ?? req.protocol;
+  const rawHost = req.headers["x-forwarded-host"];
+  const host = (Array.isArray(rawHost) ? rawHost[0] : rawHost) ?? req.headers.host;
   return `${proto}://${host}/api/auth/google/callback`;
 }
 
