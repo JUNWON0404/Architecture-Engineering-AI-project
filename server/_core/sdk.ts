@@ -266,7 +266,9 @@ class SDKServer {
 
     const sessionUserId = session.openId;
     const signedInAt = Date.now();
+    console.log("[Auth] Looking up user by openId:", sessionUserId);
     let user = await db.getUserByOpenId(sessionUserId);
+    console.log("[Auth] getUserByOpenId result:", user ? `found (id=${user.id})` : "null");
 
     // If user not in DB, attempt sync from OAuth server (Manus legacy path)
     // OAUTH_SERVER_URL이 설정된 경우에만 시도한다. Google OAuth 전용 배포에서는 불필요.
