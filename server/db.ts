@@ -91,48 +91,47 @@ export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) return;
   const now = Date.now();
   await runQuery(async (db) => {
-    // openId 기준 upsert: 재로그인 시 openId 충돌이 먼저 발생해도 안전하게 처리
-    // email 충돌(기존 이메일 회원이 OAuth 로그인) 시에도 openId를 업데이트
-    const values = {
-      ...user,
-      createdAt: user.createdAt ?? now,
-      updatedAt: user.updatedAt ?? now,
+    const updateFields = {
+      loginMethod: user.loginMethod,
+      name: user.name,
       lastSignedIn: user.lastSignedIn ?? now,
+      updatedAt: now,
     };
 
-    // Step 1: openId 기준 upsert (재로그인 처리)
-    await db.insert(users)
-      .values(values)
-      .onConflictDoUpdate({
-        target: users.openId,
-        set: {
-          loginMethod: user.loginMethod,
-          name: user.name,
-          lastSignedIn: user.lastSignedIn ?? now,
-          updatedAt: now,
-        },
-      });
-  }).catch(async (err) => {
-    // DrizzleQueryError는 postgres 에러를 err.cause로 감싼다. cause를 우선 확인.
-    const pgCode = err?.cause?.code ?? err?.code;
-    console.log("[DB] upsertUser conflict, pgCode:", pgCode, "email:", user.email);
-    // email unique 충돌(23505): 기존 이메일 회원이 Google OAuth로 처음 연결하는 경우
-    // 해당 이메일 레코드의 openId를 Google openId로 업데이트해서 계정을 연결한다
-    if (pgCode === "23505" && user.email) {
-      await runQuery(async (db) => {
-        await db.update(users)
-          .set({
-            openId: user.openId!,
-            loginMethod: user.loginMethod,
-            name: user.name,
-            lastSignedIn: user.lastSignedIn ?? now,
-            updatedAt: now,
-          })
-          .where(eq(users.email, user.email!));
-      });
-    } else {
-      throw err;
+    // 1. openId로 먼저 조회 (재로그인)
+    const byOpenId = await db.select({ id: users.id })
+      .from(users)
+      .where(eq(users.openId, user.openId!))
+      .limit(1);
+
+    if (byOpenId.length > 0) {
+      await db.update(users).set(updateFields).where(eq(users.id, byOpenId[0].id));
+      return;
     }
+
+    // 2. email로 조회 (기존 이메일 회원이 OAuth로 연결하는 경우)
+    if (user.email) {
+      const byEmail = await db.select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, user.email))
+        .limit(1);
+
+      if (byEmail.length > 0) {
+        console.log("[DB] upsertUser: linking existing email account to openId:", user.openId);
+        await db.update(users)
+          .set({ openId: user.openId!, ...updateFields })
+          .where(eq(users.id, byEmail[0].id));
+        return;
+      }
+    }
+
+    // 3. 신규 유저 INSERT
+    await db.insert(users).values({
+      ...user,
+      createdAt: user.createdAt ?? now,
+      updatedAt: now,
+      lastSignedIn: user.lastSignedIn ?? now,
+    });
   });
 }
 
