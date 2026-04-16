@@ -127,14 +127,11 @@ export function registerOAuthRoutes(app: IRouter) {
       });
       console.log("[Google OAuth] Step 3.5: sessionToken created, length:", sessionToken.length);
 
-      res.cookie(COOKIE_NAME, sessionToken, {
-        ...getSessionCookieOptions(req),
-        maxAge: ONE_YEAR_MS,
-      });
+      const cookieOpts = { ...getSessionCookieOptions(req), maxAge: ONE_YEAR_MS };
+      console.log("[Google OAuth] Step 4: setting cookie, opts:", JSON.stringify(cookieOpts));
+      res.cookie(COOKIE_NAME, sessionToken, cookieOpts);
+      console.log("[Google OAuth] Step 4: Set-Cookie header:", res.getHeader("set-cookie"));
 
-      // Vercel 서버리스에서 302 응답의 Set-Cookie가 유실되는 문제 방지.
-      // 200 HTML 페이지로 쿠키를 확실히 저장한 뒤 JS로 이동.
-      console.log("[Google OAuth] Step 4: sending redirect page");
       res.status(200).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Logging in...</title></head><body><script>window.location.replace('/dashboard');</script></body></html>`);
     } catch (err) {
       console.error("[Google OAuth] Callback failed:", String(err));
