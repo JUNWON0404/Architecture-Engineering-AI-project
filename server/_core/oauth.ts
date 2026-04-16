@@ -127,6 +127,9 @@ export function registerOAuthRoutes(app: IRouter) {
       });
       console.log("[Google OAuth] Step 3.5: sessionToken created, length:", sessionToken.length);
 
+      // 이전 세션 쿠키(secure/non-secure 양쪽) 모두 제거 후 새 쿠키 설정
+      res.clearCookie(COOKIE_NAME, { path: "/" });
+      res.clearCookie(COOKIE_NAME, { path: "/", secure: true, sameSite: "lax" });
       const cookieOpts = { ...getSessionCookieOptions(req), maxAge: ONE_YEAR_MS };
       console.log("[Google OAuth] Step 4: setting cookie, opts:", JSON.stringify(cookieOpts));
       res.cookie(COOKIE_NAME, sessionToken, cookieOpts);
