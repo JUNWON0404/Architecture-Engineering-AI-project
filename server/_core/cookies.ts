@@ -39,14 +39,14 @@ export function getSessionCookieOptions(
   //       ? hostname
   //       : undefined;
 
-  // 개발 환경에서는 sameSite: "lax" 사용
-  // 프로덕션에서는 sameSite: "none"과 secure: true 필요
+  // 배포 환경에서도 일반적인 세션 유지에는 'lax'가 가장 안정적입니다.
+  // 'none'은 크로스 도메인(다른 도메인 간의 요청)일 때만 필요합니다.
   const isDev = process.env.NODE_ENV === "development";
 
   return {
     httpOnly: true,
     path: "/",
-    sameSite: isDev ? "lax" : "none",
-    secure: isDev ? false : isSecureRequest(req),
+    sameSite: "lax", // 'none'에서 'lax'로 변경 (가장 중요한 수정)
+    secure: isDev ? false : true, // 배포 환경에서는 항상 true (HTTPS 필수)
   };
 }

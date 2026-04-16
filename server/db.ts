@@ -89,26 +89,24 @@ async function runQuery<T>(
 // ── User Management ──────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) return;
-  const openId = user.openId as string;
   const now = Date.now();
   await runQuery(async (db) => {
-    // 1. 재로그인(openId 일치): lastSignedIn만 갱신 후 종료
-    const byOpenId = await db.update(users)
-      .set({ lastSignedIn: user.lastSignedIn ?? now, updatedAt: now })
-      .where(eq(users.openId, openId))
-      .returning({ id: users.id });
-    if (byOpenId.length > 0) return;
-
-    // 2. 신규 or 이메일 계정과 연결: ON CONFLICT (email) DO UPDATE로 원자적 처리
-    //    - 신규 사용자: INSERT 성공
-    //    - 기존 이메일 계정: email 충돌 → openId를 연결하고 lastSignedIn 갱신
-    await (db as any).insert(users)
-      .values({ ...user, createdAt: now, updatedAt: now })
+    // ON CONFLICT (email) DO UPDATE를 사용하여 원자적 처리
+    // 1. 해당 이메일이 없으면 INSERT
+    // 2. 이메일이 이미 존재하면 해당 레코드의 openId, loginMethod, lastSignedIn, updatedAt을 갱신
+    await db.insert(users)
+      .values({
+        ...user,
+        createdAt: user.createdAt ?? now,
+        updatedAt: user.updatedAt ?? now,
+        lastSignedIn: user.lastSignedIn ?? now,
+      })
       .onConflictDoUpdate({
         target: users.email,
         set: {
           openId: user.openId,
-          loginMethod: user.loginMethod ?? null,
+          loginMethod: user.loginMethod,
+          name: user.name, // 이름이 변경되었을 수 있으므로 업데이트
           lastSignedIn: user.lastSignedIn ?? now,
           updatedAt: now,
         },

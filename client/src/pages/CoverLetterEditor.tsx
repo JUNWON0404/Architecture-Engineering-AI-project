@@ -2,19 +2,16 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   ArrowLeftIcon, 
   SaveIcon, 
   ChevronRightIcon, 
   ChevronLeftIcon, 
   CheckCircle2Icon, 
-  CopyIcon, 
   SparklesIcon,
   PlusIcon,
   Trash2Icon,
-  XIcon,
-  DownloadIcon
+  XIcon
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -22,7 +19,6 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { exportToWord } from "@/lib/exportUtils";
 
 interface Props {
   id?: number;
@@ -107,9 +103,10 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     r: "",
   });
 
-  const { data: master, isLoading: isMasterLoading } = trpc.coverLetter.getMaster.useQuery(undefined, {
+  const { data: master, isLoading: isMasterLoading, isError: isMasterError, error: masterError } = trpc.coverLetter.getMaster.useQuery(undefined, {
     refetchOnWindowFocus: false,
-    staleTime: Infinity, // 데이터를 명시적으로 invalidate하기 전까지 유지
+    staleTime: 30000,
+    retry: 1,
   });
 
   const experiences: Experience[] = useMemo(() => {
@@ -122,32 +119,36 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     }
   }, [form.experience]);
 
-  // 서버 데이터를 폼에 초기화 (최초 1회)
+  // 서버 데이터를 폼에 초기화
   useEffect(() => {
     if (master && !isInitialized) {
-      setForm({
-        title: master.title || "",
-        company: master.company || "",
-        position: master.position || "",
-        content: master.content || "",
-        status: (master.status as any) || "draft",
-        major: (master as any).major || "",
-        gpa: (master as any).gpa || "",
-        certifications: (master as any).certifications || "",
-        languageSkills: "",
-        experience: (master as any).experience || "[]",
-        activities: (master as any).activities || "",
-        majorCourses: (master as any).majorCourses || "",
-        keywords: (master as any).keywords || "",
-        keyStory: (master as any).keyStory || "",
-      });
-      setIsInitialized(true);
+      try {
+        setForm({
+          title: master.title || "마스터 자소서",
+          company: master.company || "",
+          position: master.position || "",
+          content: master.content || "",
+          status: (master.status as any) || "draft",
+          major: (master as any).major || "",
+          gpa: (master as any).gpa || "",
+          certifications: (master as any).certifications || "",
+          languageSkills: "",
+          experience: (master as any).experience || "[]",
+          activities: (master as any).activities || "",
+          majorCourses: (master as any).majorCourses || "",
+          keywords: (master as any).keywords || "",
+          keyStory: (master as any).keyStory || "",
+        });
+        setIsInitialized(true);
+      } catch (err) {
+        console.error("[CoverLetterEditor] Initialization Error:", err);
+        setIsInitialized(true);
+      }
     }
   }, [master, isInitialized]);
 
   const updateMutation = trpc.coverLetter.update.useMutation({
     onSuccess: () => {
-      // 성공 시 조용히 쿼리 데이터만 업데이트 (invalidate로 인한 리렌더링 방지)
       utils.coverLetter.getMaster.setData(undefined, (old: any) => ({ ...old, ...form }));
     }
   });
@@ -215,8 +216,34 @@ export default function CoverLetterEditor({ id: _unusedId }: Props) {
     }
   }, [form.keyStory]);
 
-  if (isMasterLoading || !isInitialized) {
-    return <div className="flex items-center justify-center min-h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>;
+  if (isMasterLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <p className="text-muted-foreground animate-pulse font-medium">데이터를 불러오는 중입니다...</p>
+      </div>
+    );
+  }
+
+  if (isMasterError || (!isMasterLoading && !master)) {
+    console.error("[CoverLetterEditor] Master Data Error:", masterError);
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4 text-center">
+        <div className="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mb-2">
+          <XIcon className="w-8 h-8 text-red-500" />
+        </div>
+        <h2 className="text-2xl font-black text-slate-900">불러오기 실패</h2>
+        <p className="text-muted-foreground text-lg max-w-md">
+          {masterError?.message?.includes("Unauthorized") 
+            ? "로그인 세션이 만료되었습니다. 다시 로그인해 주세요." 
+            : "데이터를 불러오는 중 오류가 발생했습니다."}
+        </p>
+        <div className="flex gap-3 mt-2">
+          <Button onClick={() => window.location.reload()} variant="outline" className="rounded-xl px-8 h-12 font-bold">다시 시도</Button>
+          <Button onClick={() => navigate("/login")} className="rounded-xl px-8 h-12 font-bold">로그인 페이지로</Button>
+        </div>
+      </div>
+    );
   }
 
   const steps = [
