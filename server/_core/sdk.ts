@@ -314,14 +314,6 @@ class SDKServer {
       throw ForbiddenError("User not found");
     }
 
-    const now = Date.now();
-    await db.upsertUser({
-      openId: user.openId,
-      lastSignedIn: signedInAt,
-      createdAt: user.createdAt || now,
-      updatedAt: now,
-    });
-
     return user;
   }
 }

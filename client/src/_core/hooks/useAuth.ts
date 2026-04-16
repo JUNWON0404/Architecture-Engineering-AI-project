@@ -62,17 +62,25 @@ export function useAuth(options?: UseAuthOptions) {
 
   useEffect(() => {
     if (!redirectOnUnauthenticated) return;
-    if (meQuery.isLoading || logoutMutation.isPending) return;
-    if (state.user) return;
-    if (typeof window === "undefined") return;
-    if (window.location.pathname === redirectPath) return;
-
-    window.location.href = redirectPath;
+    
+    // 로딩 중이거나 데이터를 가져오는 중일 때는 리다이렉트를 철저히 방어합니다.
+    if (meQuery.isLoading || meQuery.isFetching || logoutMutation.isPending) return;
+    
+    // 데이터가 확정적으로 없는 경우에만 리다이렉트합니다.
+    if (!state.user && !meQuery.isPending) {
+      if (typeof window === "undefined") return;
+      if (window.location.pathname === redirectPath) return;
+      
+      console.log("[Auth] Redirecting to login because user is missing");
+      window.location.href = redirectPath;
+    }
   }, [
     redirectOnUnauthenticated,
     redirectPath,
     logoutMutation.isPending,
     meQuery.isLoading,
+    meQuery.isFetching,
+    meQuery.isPending,
     state.user,
   ]);
 
