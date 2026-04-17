@@ -18,14 +18,25 @@ export function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const urlError = new URLSearchParams(window.location.search).get("error");
-  const [error, setError] = useState(urlError === "google_auth_failed" ? "Google 로그인에 실패했습니다. 다시 시도해주세요." : "");
+  const getErrorMessage = (errCode: string | null) => {
+    switch (errCode) {
+      case "google_auth_failed":
+        return "Google 로그인에 실패했습니다. 다시 시도해주세요.";
+      case "google_auth_disabled":
+        return "현재 구글 로그인 기능 점검 중입니다. 이메일 로그인을 이용해주세요.";
+      default:
+        return "";
+    }
+  };
+  const [error, setError] = useState(getErrorMessage(urlError));
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
 
   const signInMutation = trpc.auth.signIn.useMutation();
 
   const handleGoogleLogin = () => {
-    window.location.href = "/api/auth/google";
+    alert("현재 구글 로그인 기능 점검 중입니다. 일반 이메일 로그인을 이용해주세요.");
+    // window.location.href = "/api/auth/google";
   };
 
   /**

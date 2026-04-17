@@ -28,7 +28,12 @@ function getGoogleRedirectUri(req: Request): string {
 }
 
 export function registerOAuthRoutes(app: IRouter) {
-  // Google OAuth - 인증 시작
+  // Google OAuth - 인증 시작 (임시 비활성화)
+  app.get("/auth/google", (req: Request, res: Response) => {
+    res.redirect(302, "/login?error=google_auth_disabled");
+  });
+
+  /*
   app.get("/auth/google", (req: Request, res: Response) => {
     console.log("[OAuth] GOOGLE_CLIENT_ID set:", !!ENV.googleClientId, "| NODE_ENV:", process.env.NODE_ENV);
     if (!ENV.googleClientId) {
@@ -50,6 +55,7 @@ export function registerOAuthRoutes(app: IRouter) {
 
     res.redirect(302, `${GOOGLE_AUTH_URL}?${params.toString()}`);
   });
+  */
 
   // Google OAuth - 콜백 처리
   app.get("/auth/google/callback", async (req: Request, res: Response) => {
