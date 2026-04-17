@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { trpc } from "@/lib/trpc";
@@ -31,6 +32,7 @@ export function Login() {
   const [error, setError] = useState(getErrorMessage(urlError));
   const [isLoading, setIsLoading] = useState(false);
   const [showEmailForm, setShowEmailForm] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const signInMutation = trpc.auth.signIn.useMutation();
 
@@ -52,7 +54,7 @@ export function Login() {
         throw new Error("이메일과 비밀번호를 입력해주세요");
       }
 
-      await signInMutation.mutateAsync({ email, password });
+      await signInMutation.mutateAsync({ email, password, rememberMe });
       window.location.href = "/dashboard";
     } catch (err: unknown) {
       const message =
@@ -143,6 +145,18 @@ export function Login() {
                     disabled={isLoading}
                     className="bg-slate-50 border-slate-200 focus-visible:ring-slate-400 h-11"
                   />
+                </div>
+
+                <div className="flex items-center space-x-2 pt-1">
+                  <Checkbox 
+                    id="rememberMe" 
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked === true)}
+                    disabled={isLoading}
+                  />
+                  <Label htmlFor="rememberMe" className="text-sm text-slate-600 font-normal cursor-pointer">
+                    로그인 상태 유지
+                  </Label>
                 </div>
 
                 <Button

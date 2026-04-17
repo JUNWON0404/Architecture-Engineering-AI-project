@@ -117,7 +117,7 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, sessionToken, { ...opts, maxAge: ONE_YEAR_MS });
         return { success: true, user };
       }),
-    signIn: publicProcedure.input(z.object({ email: z.string().email(), password: z.string() }))
+    signIn: publicProcedure.input(z.object({ email: z.string().email(), password: z.string(), rememberMe: z.boolean().optional().default(false) }))
       .mutation(async ({ input, ctx }) => {
         const user = await authenticateUser(input.email, input.password);
         const correctOpenId = `email:${input.email}`;
@@ -126,11 +126,19 @@ export const appRouter = router({
         }
         const openId = (user as any).openId || correctOpenId;
         console.log("[signIn] creating token with openId:", openId);
-        const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: ONE_YEAR_MS });
+        
+        // 토큰 수명: 로그인 유지가 켜져있으면 1년, 아니면 1일(또는 세션에 맞춤)로 설정
+        const tokenExpires = input.rememberMe ? ONE_YEAR_MS : 24 * 60 * 60 * 1000;
+        const sessionToken = await sdk.createSessionToken(openId, { name: user.name || "", expiresInMs: tokenExpires });
+        
         const opts = getSessionCookieOptions(ctx.req);
         // 기존 쿠키 초기화 후 새 쿠키 세팅
         ctx.res.cookie(COOKIE_NAME, "", { httpOnly: true, path: "/", expires: new Date(0) });
-        ctx.res.cookie(COOKIE_NAME, sessionToken, { ...opts, maxAge: ONE_YEAR_MS });
+        
+        // 로그인 유지 설정에 따라 maxAge 속성 부여 (세션 쿠키 여부 결정)
+        const finalCookieOpts = input.rememberMe ? { ...opts, maxAge: ONE_YEAR_MS } : { ...opts };
+        ctx.res.cookie(COOKIE_NAME, sessionToken, finalCookieOpts);
+        
         return { success: true, user };
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
